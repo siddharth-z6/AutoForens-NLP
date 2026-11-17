@@ -1,0 +1,13 @@
+AutoForens-NLP Forensic Dashboard Links
+=========================================
+
+1. Active Local Web Server:
+   http://localhost:8080/
+   http://localhost:8080/dashboard.html
+
+2. Direct Local File Paths:
+   C:\Users\RAVI KIRAN\OneDrive\Desktop\Digital forensics\dashboard.html
+   C:\Users\RAVI KIRAN\OneDrive\Desktop\Digital forensics\index.html
+
+3. Vercel Cloud Deployment:
+   https://autoforens-nlp.vercel.app/
