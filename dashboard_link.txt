@@ -1,17 +1,17 @@
 AutoForens-NLP Forensic Dashboard & Map Links
 ==============================================
 
-1. Standalone Fullscreen Forensic Map (Clean, No Watermarks):
+1. Animated Glassmorphic Dashboard (Updates Every Second):
+   http://localhost:8080/animated_dashboard.html
+   http://localhost:8080/dashboard.html
+   http://localhost:8080/index.html
+   Direct File: C:\Users\RAVI KIRAN\OneDrive\Desktop\Digital forensics\animated_dashboard.html
+   Windows Shortcut: Open_Animated_Dashboard.url
+
+2. Standalone Fullscreen Forensic Map (Clean, No Watermarks):
    http://localhost:8080/forensic_map.html
    Direct File: C:\Users\RAVI KIRAN\OneDrive\Desktop\Digital forensics\forensic_map.html
    Windows Shortcut: Open_Forensic_Map.url
 
-2. Complete Forensic Dashboard:
-   http://localhost:8080/
-   http://localhost:8080/dashboard.html
-   Direct File: C:\Users\RAVI KIRAN\OneDrive\Desktop\Digital forensics\dashboard.html
-   Windows Shortcut: Open_Dashboard.url
-
 3. Vercel Cloud Deployment:
    https://autoforens-nlp.vercel.app/
-   https://autoforens-nlp.vercel.app/forensic_map.html

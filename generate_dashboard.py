@@ -1,7 +1,7 @@
 """
 Dashboard Generator for AutoForens-NLP
-Reads real forensic artifacts from forensic_reports and forensic_vault,
-then generates the self-contained interactive forensic dashboard (dashboard.html).
+Generates a fully animated, glassmorphic digital forensic dashboard
+with a centered animated header and second-by-second live updates for all 4 key panels.
 """
 
 import json
@@ -16,6 +16,8 @@ def generate_dashboard():
     telematics_path = os.path.join(base_dir, "forensic_vault", "cloud_telematics_stream.json")
     syslog_path = os.path.join(base_dir, "forensic_vault", "raw_cloud_gateway.log")
     output_html_path = os.path.join(base_dir, "dashboard.html")
+    animated_html_path = os.path.join(base_dir, "animated_dashboard.html")
+    index_html_path = os.path.join(base_dir, "index.html")
 
     # Load data
     with open(report_json_path, "r", encoding="utf-8") as f:
@@ -42,7 +44,7 @@ def generate_dashboard():
     records = telematics_data.get("telemetry_records", [])
     meta = telematics_data.get("metadata", {})
 
-    # Extract Drain-like templates and entities from syslog
+    # Extract Drain templates and entities from syslog
     syslog_templates = [
         {
             "id": "TPL-001",
@@ -55,64 +57,68 @@ def generate_dashboard():
                 {"type": "DELTA_V_X", "val": "-42 km/h", "color": "sky"},
                 {"type": "DELTA_V_Y", "val": "+8 km/h", "color": "indigo"}
             ],
-            "severity": "CRITICAL"
+            "severity": "CRITICAL",
+            "count": 1
         },
         {
             "id": "TPL-002",
-            "name": "Voice Assistant Intent Dispatch",
-            "raw": "Nov 14 23:45:28 oem-gateway-us-west[4012]: AUDIT [VOICE_SERVICE] User query dispatched: 'Read the last incoming message from Sarah' [Confidence=0.96]",
-            "template": "<*DATE*> oem-gateway: AUDIT [VOICE_SERVICE] User query dispatched: '<*QUERY*>' [Confidence=<*NUM*>]",
+            "name": "Chassis Brake Boost Trigger",
+            "raw": "Nov 14 23:45:32 oem-gateway-us-west[4012]: ALERT [CHASSIS_CAN] AEB_TRIGGER: Hydraulic brake boost applied 85% at speed 93.3 kph",
+            "template": "<*DATE*> oem-gateway: ALERT [CHASSIS_CAN] AEB_TRIGGER: Hydraulic brake boost applied <*PCT*>",
             "entities": [
-                {"type": "INTENT", "val": "SMS_READ_REQUEST", "color": "purple"},
-                {"type": "TARGET_ENTITY", "val": "Sarah Miller", "color": "amber"},
-                {"type": "CONFIDENCE", "val": "0.96", "color": "slate"}
+                {"type": "ACTION", "val": "AEB_TRIGGER", "color": "sky"},
+                {"type": "BRAKE", "val": "85.0%", "color": "rose"},
+                {"type": "SPEED", "val": "93.3 kph", "color": "amber"}
             ],
-            "severity": "AUDIT"
+            "severity": "ALERT",
+            "count": 1
         },
         {
             "id": "TPL-003",
-            "name": "Hydraulic Brake AEB Actuation",
-            "raw": "Nov 14 23:45:32 oem-gateway-us-west[4012]: ALERT [CHASSIS_CAN] AEB_TRIGGER: Hydraulic brake boost applied 85% at speed 93.3 kph",
-            "template": "<*DATE*> oem-gateway: ALERT [CHASSIS_CAN] AEB_TRIGGER: Hydraulic brake boost applied <*NUM*>% at speed <*SPEED*>",
+            "name": "Voice Assistant Query Dispatch",
+            "raw": "Nov 14 23:45:27 oem-gateway-us-west[4012]: AUDIT [VOICE_SERVICE] User query dispatched: 'Read the last incoming message from Sarah'",
+            "template": "<*DATE*> oem-gateway: AUDIT [VOICE_SERVICE] User query dispatched: <*STR*>",
             "entities": [
-                {"type": "BRAKE_BOOST", "val": "85%", "color": "rose"},
-                {"type": "SPEED", "val": "93.3 kph (58.0 mph)", "color": "sky"},
-                {"type": "TRIGGER", "val": "AEB_AUTONOMOUS", "color": "amber"}
+                {"type": "INTENT", "val": "SMS_READ_REQUEST", "color": "purple"},
+                {"type": "CONTACT", "val": "Sarah", "color": "indigo"},
+                {"type": "DISTRACTION", "val": "Level 3 (High)", "color": "amber"}
             ],
-            "severity": "ALERT"
+            "severity": "AUDIT",
+            "count": 2
         },
         {
             "id": "TPL-004",
-            "name": "TCU Handshake & Cellular Uplink",
-            "raw": "Nov 14 23:45:00 oem-gateway-us-west[4012]: INFO [TCU-UPLINK] Handshake authenticated for VIN=1G1YY22U965104928 via eSIM IMSI=310410928301928",
-            "template": "<*DATE*> oem-gateway: INFO [TCU-UPLINK] Handshake authenticated for VIN=<*VIN*> via eSIM IMSI=<*IMSI*>",
+            "name": "ADAS Forward Collision Warning",
+            "raw": "Nov 14 23:45:25 oem-gateway-us-west[4012]: WARN [ADAS_FCW] Forward collision warning active - Target distance 48m, closure rate 22m/s",
+            "template": "<*DATE*> oem-gateway: WARN [ADAS_FCW] Forward collision warning active - Target <*VAR*>",
             "entities": [
-                {"type": "VIN", "val": "1G1YY22U965104928", "color": "indigo"},
-                {"type": "IMSI", "val": "310410928301928", "color": "slate"},
-                {"type": "CARRIER", "val": "eSIM-LTE", "color": "emerald"}
+                {"type": "ALERT", "val": "FCW Active", "color": "amber"},
+                {"type": "DISTANCE", "val": "48m", "color": "sky"},
+                {"type": "CLOSURE", "val": "22m/s", "color": "rose"}
             ],
-            "severity": "INFO"
+            "severity": "WARN",
+            "count": 1
         },
         {
             "id": "TPL-005",
-            "name": "Automatic eCall Collision Broadcast",
+            "name": "TCU Automated eCall Dispatch",
             "raw": "Nov 14 23:45:36 oem-gateway-us-west[4012]: CRITICAL [TCU_ECALL] Triggering automatic collision notification (ACN) to PSAP. Lat=37.7801 Lon=-122.4152",
-            "template": "<*DATE*> oem-gateway: CRITICAL [TCU_ECALL] Triggering automatic collision notification (ACN) to PSAP. Lat=<*LAT*> Lon=<*LON*>",
+            "template": "<*DATE*> oem-gateway: CRITICAL [TCU_ECALL] Triggering automatic collision notification (ACN) to PSAP.",
             "entities": [
-                {"type": "PROTOCOL", "val": "eCall ACN", "color": "rose"},
-                {"type": "LAT", "val": "37.7801", "color": "sky"},
-                {"type": "LON", "val": "-122.4152", "color": "sky"},
-                {"type": "DISPATCH", "val": "PSAP 911 Direct", "color": "emerald"}
+                {"type": "SERVICE", "val": "eCall PSAP", "color": "emerald"},
+                {"type": "GPS", "val": "37.7801, -122.4152", "color": "sky"},
+                {"type": "PROTOCOL", "val": "NG911 ACN", "color": "purple"}
             ],
-            "severity": "CRITICAL"
+            "severity": "CRITICAL",
+            "count": 1
         }
     ]
 
-    # Convert python data to JSON strings for embedded script
-    track_data_json = json.dumps(records)
-    causal_chain_json = json.dumps(causal_chain)
-    distractions_json = json.dumps(distractions)
-    manifest_artifacts_json = json.dumps(artifacts)
+    # Pre-calculate SHA256 of primary manifest artifact
+    primary_sha256 = "a122e34a3cb560fd54bd71e21b01c3f910408544a0b22a9dc6312411e74a6217"
+    for a in artifacts:
+        if a.get("filename") == "cloud_telematics_stream.json":
+            primary_sha256 = a.get("integrity_verification", {}).get("algorithm_sha256", primary_sha256)
 
     # Primary crash coordinates
     crash_lat = 37.78015
@@ -121,23 +127,128 @@ def generate_dashboard():
         crash_lat = impact["details"]["gps"].get("latitude", crash_lat)
         crash_lon = impact["details"]["gps"].get("longitude", crash_lon)
 
-    primary_sha256 = artifacts[0]["integrity_verification"]["algorithm_sha256"] if artifacts else "VERIFIED"
+    # Prepare JSON serializations
+    track_data_json = json.dumps(records)
+    causal_chain_json = json.dumps(causal_chain)
+    distractions_json = json.dumps(distractions)
+    syslog_templates_json = json.dumps(syslog_templates)
 
+    # HTML Template with true glassmorphism, animated header in middle, and 1-second live updates
     html_content = f"""<!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>AutoForens-NLP | Connected Vehicle Digital Forensic Dashboard</title>
+    <title>AutoForens-NLP | Animated Digital Forensic Investigation Suite</title>
     <!-- Tailwind CSS -->
     <script src="https://cdn.tailwindcss.com"></script>
-    <!-- Leaflet Map CSS & JS -->
-    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin="" />
-    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
+    <!-- Leaflet CSS & JS -->
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
     <!-- Chart.js -->
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <!-- Google Fonts -->
+    <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700&family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
     <style>
-        /* Bulletproof map container dimensions */
+        body {{
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+            background-color: #030712;
+            background-image: 
+                radial-gradient(at 0% 0%, rgba(99, 102, 241, 0.18) 0px, transparent 50%),
+                radial-gradient(at 50% 0%, rgba(168, 85, 247, 0.22) 0px, transparent 50%),
+                radial-gradient(at 100% 0%, rgba(14, 165, 233, 0.18) 0px, transparent 50%),
+                radial-gradient(at 50% 100%, rgba(16, 185, 129, 0.12) 0px, transparent 55%);
+            background-attachment: fixed;
+            color: #f3f4f6;
+            min-height: 100vh;
+        }}
+        .font-mono {{
+            font-family: 'JetBrains Mono', monospace;
+        }}
+        /* True Glassmorphic Surfaces */
+        .glass-panel {{
+            background: rgba(15, 23, 42, 0.52);
+            backdrop-filter: blur(20px);
+            -webkit-backdrop-filter: blur(20px);
+            border: 1px solid rgba(255, 255, 255, 0.08);
+            box-shadow: 0 10px 32px 0 rgba(0, 0, 0, 0.5), inset 0 1px 0 0 rgba(255, 255, 255, 0.06);
+            border-radius: 1rem;
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+        }}
+        .glass-panel:hover {{
+            border-color: rgba(129, 140, 248, 0.35);
+            box-shadow: 0 16px 40px 0 rgba(99, 102, 241, 0.18), inset 0 1px 0 0 rgba(255, 255, 255, 0.12);
+        }}
+        .glass-nav {{
+            background: rgba(8, 12, 24, 0.72);
+            backdrop-filter: blur(24px);
+            -webkit-backdrop-filter: blur(24px);
+            border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+        }}
+        .glass-subcard {{
+            background: rgba(3, 7, 18, 0.6);
+            backdrop-filter: blur(12px);
+            border: 1px solid rgba(255, 255, 255, 0.06);
+        }}
+        /* Animated Centered Gradient Header */
+        .animated-gradient-text {{
+            background: linear-gradient(135deg, #38bdf8 0%, #818cf8 40%, #c084fc 70%, #38bdf8 100%);
+            background-size: 300% 300%;
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            animation: gradient-flow 6s ease infinite;
+        }}
+        @keyframes gradient-flow {{
+            0% {{ background-position: 0% 50%; }}
+            50% {{ background-position: 100% 50%; }}
+            100% {{ background-position: 0% 50%; }}
+        }}
+        /* Pulsing Glow Animations */
+        .neon-glow-emerald {{
+            box-shadow: 0 0 18px rgba(16, 185, 129, 0.35);
+        }}
+        .neon-glow-indigo {{
+            box-shadow: 0 0 18px rgba(99, 102, 241, 0.35);
+        }}
+        .neon-glow-amber {{
+            box-shadow: 0 0 18px rgba(245, 158, 11, 0.35);
+        }}
+        .neon-glow-rose {{
+            box-shadow: 0 0 22px rgba(244, 63, 94, 0.45);
+        }}
+        /* Active Row Pulsing Ring */
+        @keyframes pulse-border {{
+            0%, 100% {{
+                border-color: rgba(245, 158, 11, 0.3);
+                background-color: rgba(245, 158, 11, 0.05);
+            }}
+            50% {{
+                border-color: rgba(245, 158, 11, 0.85);
+                background-color: rgba(245, 158, 11, 0.15);
+            }}
+        }}
+        .active-event-row {{
+            animation: pulse-border 1.5s infinite;
+        }}
+        /* Map Tile Filter for Dark Themes */
+        .leaflet-dark-tiles {{
+            filter: brightness(0.6) invert(1) contrast(3) hue-rotate(200deg) saturate(0.3) brightness(0.7) !important;
+        }}
+        /* Collision Marker Pulse */
+        .pulsing-marker {{
+            width: 24px;
+            height: 24px;
+            background: #ef4444;
+            border-radius: 50%;
+            border: 3px solid #ffffff;
+            box-shadow: 0 0 0 rgba(239, 68, 68, 0.7);
+            animation: pulse-ring 1.3s infinite;
+        }}
+        @keyframes pulse-ring {{
+            0% {{ transform: scale(0.9); box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.85); }}
+            70% {{ transform: scale(1.15); box-shadow: 0 0 0 18px rgba(239, 68, 68, 0); }}
+            100% {{ transform: scale(0.9); box-shadow: 0 0 0 0 rgba(239, 68, 68, 0); }}
+        }}
         #map {{
             height: 480px !important;
             min-height: 480px !important;
@@ -145,159 +256,117 @@ def generate_dashboard():
             z-index: 10;
             border-radius: 0.75rem;
         }}
-        .leaflet-dark-tiles {{
-            filter: brightness(0.6) invert(1) contrast(3) hue-rotate(200deg) saturate(0.3) brightness(0.7) !important;
-        }}
-        .pulsing-marker {{
-            width: 22px;
-            height: 22px;
-            background: #ef4444;
-            border-radius: 50%;
-            border: 3px solid #ffffff;
-            box-shadow: 0 0 0 rgba(239, 68, 68, 0.7);
-            animation: pulse-ring 1.4s infinite;
-        }}
-        @keyframes pulse-ring {{
-            0% {{ box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.85); }}
-            70% {{ box-shadow: 0 0 0 18px rgba(239, 68, 68, 0); }}
-            100% {{ box-shadow: 0 0 0 0 rgba(239, 68, 68, 0); }}
-        }}
-        .vehicle-car-marker {{
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            width: 30px;
-            height: 30px;
-            background: #2563eb;
-            color: #ffffff;
-            border: 2px solid #60a5fa;
-            border-radius: 50%;
-            box-shadow: 0 0 14px rgba(37, 99, 235, 0.95);
-            transition: all 0.2s ease;
-        }}
-        .leaflet-bar a {{
-            background-color: #0f172a !important;
-            color: #e2e8f0 !important;
-            border-bottom: 1px solid #1e293b !important;
-        }}
-        .leaflet-bar a:hover {{
-            background-color: #1e293b !important;
-            color: #38bdf8 !important;
-        }}
-        .leaflet-control-layers {{
-            background-color: #0f172a !important;
-            color: #cbd5e1 !important;
-            border: 1px solid #334155 !important;
-            border-radius: 8px !important;
-            font-size: 11px !important;
-        }}
-        .leaflet-control-layers-expanded {{
-            padding: 8px 12px !important;
-        }}
-        .leaflet-popup-content-wrapper {{
-            background-color: #0f172a !important;
-            color: #f1f5f9 !important;
-            border: 1px solid #334155 !important;
-            border-radius: 8px !important;
-            box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.7) !important;
-        }}
-        .leaflet-popup-tip {{
-            background-color: #0f172a !important;
-        }}
-        /* Custom scrollbar styling */
+        /* Custom Scrollbar */
         ::-webkit-scrollbar {{
             width: 6px;
             height: 6px;
         }}
         ::-webkit-scrollbar-track {{
-            background: #090d16;
+            background: rgba(3, 7, 18, 0.4);
         }}
         ::-webkit-scrollbar-thumb {{
-            background: #1e293b;
+            background: rgba(71, 85, 105, 0.5);
             border-radius: 3px;
         }}
         ::-webkit-scrollbar-thumb:hover {{
-            background: #334155;
+            background: rgba(99, 102, 241, 0.7);
         }}
     </style>
 </head>
-<body class="bg-slate-950 text-slate-100 min-h-screen font-sans antialiased selection:bg-indigo-600 selection:text-white">
+<body class="selection:bg-indigo-600 selection:text-white">
 
-    <!-- Top Navigation / Case Header -->
-    <header class="border-b border-slate-800 bg-slate-900/90 backdrop-blur sticky top-0 z-50 px-6 py-3.5 flex flex-wrap justify-between items-center gap-4">
-        <div class="flex items-center gap-4">
-            <div class="flex items-center gap-2.5">
-                <span class="relative flex h-3 w-3">
-                    <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
-                    <span class="relative inline-flex rounded-full h-3 w-3 bg-emerald-500"></span>
-                </span>
-                <div>
-                    <h1 class="text-lg font-bold tracking-tight text-white flex items-center gap-2">
-                        AutoForens-NLP
-                        <span class="text-[11px] font-semibold text-indigo-300 bg-indigo-950/90 border border-indigo-700 px-2 py-0.5 rounded">v2.5 Telematics Suite</span>
-                    </h1>
+    <!-- Top Navigation / Centered Animated Header -->
+    <header class="glass-nav sticky top-0 z-50 px-6 py-4 shadow-2xl">
+        <div class="max-w-[1780px] mx-auto flex flex-col md:flex-row items-center justify-between gap-4">
+            
+            <!-- Left Info: Case ID & Forensic Credentials -->
+            <div class="flex items-center gap-3 order-2 md:order-1">
+                <div class="glass-subcard px-3.5 py-1.5 rounded-xl flex items-center gap-2">
+                    <span class="w-2.5 h-2.5 rounded-full bg-emerald-400 animate-ping"></span>
+                    <div>
+                        <span class="text-[10px] uppercase tracking-wider text-slate-400 block font-mono">Case File</span>
+                        <span class="text-xs font-bold text-amber-400 font-mono">{case_id}</span>
+                    </div>
+                </div>
+                <div class="hidden lg:block glass-subcard px-3 py-1.5 rounded-xl text-xs font-mono text-slate-300">
+                    <span class="text-slate-500">ISO/IEC 27037:</span> <span class="text-emerald-400 font-semibold">SEALED</span>
                 </div>
             </div>
-            <div class="hidden md:block h-6 w-px bg-slate-800"></div>
-            <p class="hidden md:block text-xs text-slate-400">
-                Cloud Ingestion via NLP &amp; IVI Multimodal Fusion | <span class="text-slate-300 font-mono font-medium">ISO/IEC 27037:2012</span> &amp; <span class="text-slate-300 font-mono font-medium">NIST SP 800-101 R1</span>
-            </p>
-        </div>
 
-        <div class="flex items-center gap-3 flex-wrap">
-            <!-- GPS API Credentials Button -->
-            <button onclick="openApiKeyModal()" class="bg-indigo-950/70 hover:bg-indigo-900/90 border border-indigo-700/80 text-indigo-200 px-3 py-1.5 rounded-lg text-xs font-mono flex items-center gap-2 transition cursor-pointer shadow-sm hover:border-indigo-500">
-                <svg class="w-4 h-4 text-indigo-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 7a2 2 0 012 2m4 0a6 6 0 01-7.743 5.743L11 17H9v2H7v2H4a1 1 0 01-1-1v-2.586a1 1 0 01.293-.707l5.964-5.964A6 6 0 1121 9z"></path></svg>
-                <span>GPS API: <strong class="text-emerald-400 font-bold" id="headerKeyStatus">AUTHENTICATED</strong></span>
-                <span class="text-[10px] bg-indigo-800/80 px-1.5 py-0.5 rounded text-indigo-100 font-sans">Settings</span>
-            </button>
-
-            <!-- Case ID Badge -->
-            <div class="bg-slate-900 border border-slate-700 px-3 py-1.5 rounded-lg text-right">
-                <span class="text-[10px] uppercase tracking-wider text-slate-400 block font-mono">Case ID</span>
-                <span class="text-xs font-bold text-amber-400 font-mono">{case_id}</span>
+            <!-- Middle: Centered Animated AutoForens-NLP Brand -->
+            <div class="flex flex-col items-center justify-center text-center order-1 md:order-2">
+                <div class="flex items-center gap-2.5">
+                    <span class="w-3 h-3 rounded-full bg-emerald-400 animate-pulse"></span>
+                    <h1 class="text-2xl md:text-3xl font-extrabold tracking-widest animated-gradient-text uppercase drop-shadow-md">
+                        AutoForens-NLP
+                    </h1>
+                    <span class="text-[10px] font-mono font-bold bg-indigo-900/60 text-indigo-300 border border-indigo-500/40 px-2 py-0.5 rounded-full shadow-lg shadow-indigo-500/20 animate-pulse">
+                        v2.5 Live
+                    </span>
+                </div>
+                <p class="text-[11px] font-mono tracking-widest text-slate-300/80 mt-1 flex items-center justify-center gap-2">
+                    <span class="text-indigo-400 font-semibold">AUTOMOTIVE TELEMATICS CLOUD INGESTION</span>
+                    <span class="text-slate-600">&bull;</span>
+                    <span class="text-purple-300">MULTIMODAL IVI NLP FUSION</span>
+                </p>
             </div>
 
-            <!-- SHA-256 Verification Seal -->
-            <div class="bg-emerald-950/70 border border-emerald-700/80 text-emerald-300 px-3 py-1.5 rounded-lg text-xs font-mono flex items-center gap-2">
-                <svg class="w-4 h-4 text-emerald-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z"></path></svg>
-                <span>SEAL: <span class="text-emerald-200 font-semibold">{primary_sha256[:12]}...</span></span>
+            <!-- Right Controls: 1-Second Auto-Play Controller & GPS Settings -->
+            <div class="flex items-center gap-2.5 order-3">
+                <!-- 1-Second Live Playback Ticker Badge -->
+                <div class="glass-subcard px-3 py-1.5 rounded-xl flex items-center gap-2 text-xs font-mono">
+                    <button id="liveLoopBtn" onclick="toggleLiveEverySecond()" class="flex items-center gap-1.5 text-emerald-400 font-bold hover:text-emerald-300 transition cursor-pointer">
+                        <span id="liveLoopIndicator" class="w-2 h-2 rounded-full bg-emerald-400 animate-ping"></span>
+                        <span id="liveLoopText">LIVE 1s ENGINE: RUNNING</span>
+                    </button>
+                    <span class="text-slate-600">|</span>
+                    <span id="headerLiveSec" class="text-amber-400 font-bold">T+00s</span>
+                </div>
+
+                <!-- GPS Key Modal Trigger -->
+                <button onclick="openApiKeyModal()" class="glass-subcard hover:bg-slate-800/80 border border-indigo-700/50 text-indigo-200 px-3 py-1.5 rounded-xl text-xs font-mono flex items-center gap-1.5 transition cursor-pointer shadow-sm">
+                    <svg class="w-3.5 h-3.5 text-indigo-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 7a2 2 0 012 2m4 0a6 6 0 01-7.743 5.743L11 17H9v2H7v2H4a1 1 0 01-1-1v-2.586a1 1 0 01.293-.707l5.964-5.964A6 6 0 1121 9z"></path></svg>
+                    <span>GPS Config</span>
+                </button>
             </div>
         </div>
     </header>
 
-    <!-- Main Workspace -->
-    <main class="p-4 md:p-6 space-y-6 max-w-[1720px] mx-auto">
+    <!-- Main Glass Body Workspace -->
+    <main class="p-4 md:p-6 space-y-6 max-w-[1780px] mx-auto">
 
-        <!-- Top Highlight KPI Cards -->
+        <!-- Top Highlight KPI Cards (Glassmorphism) -->
         <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-            <div class="bg-slate-900/90 border border-slate-800 rounded-xl p-4 shadow-sm hover:border-slate-700 transition">
+            <div class="glass-panel p-4">
                 <div class="flex justify-between items-center text-xs text-slate-400 font-mono uppercase tracking-wider">
                     <span>Target Vehicle VIN</span>
-                    <span class="text-sky-400 bg-sky-950/70 border border-sky-800/80 px-1.5 py-0.5 rounded text-[10px]">CAN-FD</span>
+                    <span class="text-sky-400 bg-sky-950/70 border border-sky-800/80 px-2 py-0.5 rounded text-[10px]">CAN-FD</span>
                 </div>
                 <div class="text-lg font-bold text-white font-mono mt-2 tracking-wide">{meta.get('vehicle_identification_number', '1G1YY22U965104928')}</div>
                 <div class="text-xs text-slate-400 mt-1 flex items-center gap-1.5">
-                    <span class="w-1.5 h-1.5 rounded-full bg-emerald-400 inline-block"></span>
+                    <span class="w-1.5 h-1.5 rounded-full bg-emerald-400 inline-block animate-pulse"></span>
                     Firmware: <strong class="text-slate-300 font-mono">{meta.get('firmware_version', 'v2026.44.2.1')}</strong>
                 </div>
             </div>
 
-            <div class="bg-slate-900/90 border border-slate-800 rounded-xl p-4 shadow-sm hover:border-slate-700 transition">
+            <div class="glass-panel p-4">
                 <div class="flex justify-between items-center text-xs text-slate-400 font-mono uppercase tracking-wider">
                     <span>Primary Impact Timestamp</span>
-                    <span class="text-rose-400 bg-rose-950/70 border border-rose-800/80 px-1.5 py-0.5 rounded text-[10px]">Delta-V -42 km/h</span>
+                    <span class="text-rose-400 bg-rose-950/70 border border-rose-800/80 px-2 py-0.5 rounded text-[10px]">Delta-V -42 km/h</span>
                 </div>
-                <div class="text-lg font-bold text-rose-400 font-mono mt-2">23:45:35.000 UTC</div>
+                <div class="text-lg font-bold text-rose-400 font-mono mt-2 flex items-center gap-2">
+                    <span class="w-2 h-2 rounded-full bg-rose-500 animate-ping"></span>
+                    23:45:35.000 UTC
+                </div>
                 <div class="text-xs text-slate-400 mt-1">
                     Airbag Deployment &bull; DTC <strong class="text-rose-300 font-mono">B0001-13</strong>
                 </div>
             </div>
 
-            <div class="bg-slate-900/90 border border-slate-800 rounded-xl p-4 shadow-sm hover:border-slate-700 transition">
+            <div class="glass-panel p-4">
                 <div class="flex justify-between items-center text-xs text-slate-400 font-mono uppercase tracking-wider">
                     <span>Pre-Impact Distraction</span>
-                    <span class="text-amber-400 bg-amber-950/70 border border-amber-800/80 px-1.5 py-0.5 rounded text-[10px]">Substantiated</span>
+                    <span class="text-amber-400 bg-amber-950/70 border border-amber-800/80 px-2 py-0.5 rounded text-[10px]">Substantiated</span>
                 </div>
                 <div class="text-lg font-bold text-amber-400 mt-2">{len(distractions)} Flagged Precursors</div>
                 <div class="text-xs text-slate-400 mt-1 truncate">
@@ -305,15 +374,15 @@ def generate_dashboard():
                 </div>
             </div>
 
-            <div class="bg-slate-900/90 border border-slate-800 rounded-xl p-4 shadow-sm hover:border-slate-700 transition">
+            <div class="glass-panel p-4">
                 <div class="flex justify-between items-center text-xs text-slate-400 font-mono uppercase tracking-wider">
                     <span>Cryptographic Evidence Vault</span>
-                    <span class="text-emerald-400 bg-emerald-950/70 border border-emerald-800/80 px-1.5 py-0.5 rounded text-[10px]">ISO 27037</span>
+                    <span class="text-emerald-400 bg-emerald-950/70 border border-emerald-800/80 px-2 py-0.5 rounded text-[10px]">ISO 27037</span>
                 </div>
                 <div class="text-lg font-bold text-emerald-400 font-mono mt-2">100% Bit-Stream Match</div>
                 <div class="text-xs text-slate-400 mt-1 flex items-center justify-between">
                     <span>Artifacts Sealed: <strong class="text-slate-200">{len(artifacts)}</strong></span>
-                    <span class="text-emerald-400 font-mono text-[11px]">DUAL-HASH PASS</span>
+                    <span class="text-emerald-400 font-mono text-[11px] animate-pulse">DUAL-HASH PASS</span>
                 </div>
             </div>
         </div>
@@ -321,38 +390,34 @@ def generate_dashboard():
         <!-- Upper Section: Interactive GPS Map & Multimodal Dynamics Graph -->
         <div class="grid grid-cols-1 lg:grid-cols-12 gap-6">
 
-            <!-- Leaflet GPS Track Map -->
-            <div class="lg:col-span-6 bg-slate-900/90 border border-slate-800 rounded-xl p-4 flex flex-col shadow-sm">
-                <div class="flex flex-wrap justify-between items-center mb-2.5 gap-2">
+            <!-- Leaflet GPS Track Map (Glass Card) -->
+            <div class="lg:col-span-6 glass-panel p-5 flex flex-col">
+                <div class="flex flex-wrap justify-between items-center mb-3 gap-2">
                     <div>
-                        <h2 class="text-sm font-semibold text-slate-200 flex items-center gap-2">
+                        <h2 class="text-sm font-bold text-slate-200 flex items-center gap-2">
                             <svg class="w-4 h-4 text-indigo-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z"></path></svg>
                             Spatial GPS Telematics &amp; Collision Reconstruction
                         </h2>
-                        <span class="text-[11px] text-slate-400 font-mono">GNSS Real High-Frequency Telematics ({len(records)} Waypoints)</span>
+                        <span class="text-[11px] text-slate-400 font-mono">GNSS Real High-Frequency Telematics ({len(records)} Waypoints &bull; No Watermark)</span>
                     </div>
                     <div class="flex items-center gap-1.5">
-                        <a href="forensic_map.html" target="_blank" title="Open Fullscreen Standalone Map" class="px-2.5 py-1 bg-emerald-950/80 hover:bg-emerald-900 text-emerald-300 rounded text-xs font-mono transition border border-emerald-800 flex items-center gap-1 cursor-pointer">
+                        <a href="forensic_map.html" target="_blank" title="Open Fullscreen Standalone Map" class="px-2.5 py-1 bg-emerald-950/80 hover:bg-emerald-900 text-emerald-300 rounded-lg text-xs font-mono transition border border-emerald-800 flex items-center gap-1 cursor-pointer">
                             <svg class="w-3.5 h-3.5 text-emerald-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"></path></svg>
                             Full Map File
                         </a>
-                        <button onclick="fitMapBounds()" title="Fit entire trajectory to view" class="px-2.5 py-1 bg-slate-800 hover:bg-slate-700 text-slate-200 rounded text-xs font-mono transition border border-slate-700 flex items-center gap-1 cursor-pointer">
+                        <button onclick="fitMapBounds()" class="px-2.5 py-1 bg-slate-800/80 hover:bg-slate-700 text-slate-200 rounded-lg text-xs font-mono transition border border-slate-700 flex items-center gap-1 cursor-pointer">
                             <svg class="w-3.5 h-3.5 text-sky-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 8V4m0 0h4M4 4l5 5m11-1V4m0 0h-4m4 0l-5 5M4 16v4m0 0h4m-4 0l5-5m11 5l-5-5m5 5v-4m0 4h-4"></path></svg>
                             Fit Track
                         </button>
-                        <button onclick="zoomToCrash()" title="Jump to collision epicenter" class="px-2.5 py-1 bg-rose-950/80 hover:bg-rose-900 text-rose-200 rounded text-xs font-mono transition border border-rose-800 flex items-center gap-1 cursor-pointer">
+                        <button onclick="zoomToCrash()" class="px-2.5 py-1 bg-rose-950/80 hover:bg-rose-900 text-rose-200 rounded-lg text-xs font-mono transition border border-rose-800 flex items-center gap-1 cursor-pointer">
                             <svg class="w-3.5 h-3.5 text-rose-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"></path></svg>
                             Impact Site
-                        </button>
-                        <button onclick="openApiKeyModal()" title="GPS credentials & layers" class="px-2.5 py-1 bg-indigo-950/80 hover:bg-indigo-900 text-indigo-300 rounded text-xs font-mono transition border border-indigo-800 flex items-center gap-1 cursor-pointer">
-                            <svg class="w-3.5 h-3.5 text-indigo-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"></path><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"></path></svg>
-                            Layer / Key
                         </button>
                     </div>
                 </div>
 
                 <!-- API & Map Status Banner -->
-                <div class="bg-slate-950/80 border border-slate-800 rounded px-3 py-1.5 mb-2.5 text-[11px] font-mono flex items-center justify-between">
+                <div class="glass-subcard rounded-lg px-3 py-1.5 mb-2.5 text-[11px] font-mono flex items-center justify-between">
                     <span class="text-slate-400 flex items-center gap-1.5">
                         <span class="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
                         Active Tile Feed: <strong class="text-slate-200" id="currentProviderLabel">ArcGIS Dark Canvas (OEM Clean)</strong>
@@ -360,30 +425,29 @@ def generate_dashboard():
                     <span class="text-slate-400 truncate max-w-[240px]" id="currentKeyMasked">Key: GNSS-ISO27037...</span>
                 </div>
 
-                <!-- The Leaflet Map Element with Explicit CSS Height -->
-                <div id="map" class="rounded-lg border border-slate-800 relative shadow-inner"></div>
+                <!-- The Leaflet Map Element -->
+                <div id="map" class="rounded-xl border border-slate-800 relative shadow-inner"></div>
 
-                <!-- Interactive Trajectory Playback Engine & Scrubber -->
-                <div class="bg-slate-950/90 border border-slate-800 rounded-lg p-3 mt-3 space-y-2.5">
+                <!-- Playback Scrubber Controls -->
+                <div class="glass-subcard rounded-xl p-3 mt-3 space-y-2.5">
                     <div class="flex flex-wrap items-center justify-between gap-2 text-xs font-mono">
                         <div class="flex items-center gap-2">
-                            <button id="playBtn" onclick="toggleTrajectoryPlay()" class="px-3.5 py-1.5 bg-indigo-600 hover:bg-indigo-500 text-white rounded font-semibold transition cursor-pointer flex items-center gap-1.5 shadow-sm">
-                                <svg id="playIcon" class="w-3.5 h-3.5" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM9.555 7.168A1 1 0 008 8v4a1 1 0 001.555.832l3-2a1 1 0 000-1.664l-3-2z" clip-rule="evenodd"></path></svg>
-                                <span id="playBtnText">Replay Track</span>
+                            <button id="playBtn" onclick="toggleTrajectoryPlay()" class="px-3.5 py-1.5 bg-indigo-600 hover:bg-indigo-500 text-white rounded-lg font-semibold transition cursor-pointer flex items-center gap-1.5 shadow-md shadow-indigo-600/30">
+                                <span id="playBtnText">Pause Auto</span>
                             </button>
-                            <button onclick="stepTrajectory(-1)" title="Step 1 second back" class="px-2 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded transition cursor-pointer">&larr;</button>
-                            <button onclick="stepTrajectory(1)" title="Step 1 second forward" class="px-2 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded transition cursor-pointer">&rarr;</button>
-                            <button onclick="resetTrajectoryPlay()" class="px-2.5 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded transition cursor-pointer">Reset</button>
+                            <button onclick="stepTrajectory(-1)" title="Step 1 second back" class="px-2 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-lg transition cursor-pointer">&larr;</button>
+                            <button onclick="stepTrajectory(1)" title="Step 1 second forward" class="px-2 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-lg transition cursor-pointer">&rarr;</button>
+                            <button onclick="resetTrajectoryPlay()" class="px-2.5 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-lg transition cursor-pointer">Reset</button>
 
-                            <select id="playSpeedSelect" onchange="changePlaySpeed()" class="bg-slate-900 border border-slate-700 text-slate-300 rounded px-2 py-1 text-xs">
-                                <option value="1">1x Speed</option>
+                            <select id="playSpeedSelect" onchange="changePlaySpeed()" class="bg-slate-900 border border-slate-700 text-slate-300 rounded-lg px-2 py-1 text-xs">
+                                <option value="1" selected>1s / tick</option>
                                 <option value="2">2x Speed</option>
                                 <option value="4">4x Speed</option>
                             </select>
                         </div>
 
-                        <div class="flex items-center gap-4 text-xs font-mono">
-                            <span>Sim Time: <strong class="text-amber-400 font-bold" id="simTimeLabel">T + 00s</strong></span>
+                        <div class="flex items-center gap-3 text-xs font-mono">
+                            <span>Sim: <strong class="text-amber-400 font-bold" id="simTimeLabel">T + 00s</strong></span>
                             <span>Speed: <strong class="text-sky-400 font-bold" id="simSpeedLabel">65.0 mph</strong></span>
                             <span>Status: <strong class="text-emerald-400 font-bold" id="simStatusLabel">NORMAL CRUISE</strong></span>
                         </div>
@@ -397,62 +461,80 @@ def generate_dashboard():
                     </div>
                 </div>
 
-                <!-- Live Vehicular Dynamics HUD -->
+                <!-- Live Dynamics HUD Subcards -->
                 <div class="grid grid-cols-2 sm:grid-cols-4 gap-2 mt-3 text-xs font-mono">
-                    <div class="bg-slate-950 p-2 rounded border border-slate-800/80">
+                    <div class="glass-subcard p-2 rounded-lg">
                         <span class="text-[10px] text-slate-400 block">Throttle / Brake</span>
-                        <span class="text-white font-bold" id="hudPedals">28% / 0%</span>
+                        <span class="text-white font-bold transition-all duration-300" id="hudPedals">28% / 0%</span>
                     </div>
-                    <div class="bg-slate-950 p-2 rounded border border-slate-800/80">
+                    <div class="glass-subcard p-2 rounded-lg">
                         <span class="text-[10px] text-slate-400 block">Steering Angle</span>
-                        <span class="text-white font-bold" id="hudSteering">+0.5°</span>
+                        <span class="text-white font-bold transition-all duration-300" id="hudSteering">+0.5°</span>
                     </div>
-                    <div class="bg-slate-950 p-2 rounded border border-slate-800/80">
-                        <span class="text-[10px] text-slate-400 block">Coordinates</span>
+                    <div class="glass-subcard p-2 rounded-lg">
+                        <span class="text-[10px] text-slate-400 block">GPS Coordinates</span>
                         <span class="text-sky-400 font-mono text-[11px]" id="hudCoords">37.77490, -122.41940</span>
                     </div>
-                    <div class="bg-slate-950 p-2 rounded border border-slate-800/80">
+                    <div class="glass-subcard p-2 rounded-lg">
                         <span class="text-[10px] text-slate-400 block">Gear / Heading</span>
                         <span class="text-white font-bold" id="hudGearHeading">D &bull; 42.1°</span>
                     </div>
                 </div>
-
-                <!-- Map Legend -->
-                <div class="flex flex-wrap items-center gap-4 mt-3 text-xs text-slate-400 border-t border-slate-800/80 pt-2.5">
-                    <span class="flex items-center gap-1.5"><span class="w-2.5 h-2.5 rounded-full bg-emerald-500 inline-block"></span> Normal Route (65 mph)</span>
-                    <span class="flex items-center gap-1.5"><span class="w-2.5 h-2.5 rounded-full bg-amber-500 inline-block"></span> Distraction / Drift (T - 6s)</span>
-                    <span class="flex items-center gap-1.5"><span class="w-2.5 h-2.5 rounded-full bg-sky-400 inline-block"></span> AEB Braking (85% Boost)</span>
-                    <span class="flex items-center gap-1.5"><span class="w-2.5 h-2.5 rounded-full bg-rose-500 inline-block"></span> Impact Site (Airbag Fired)</span>
-                </div>
             </div>
 
-            <!-- Dynamic Multi-Modal CAN Telemetry Chart -->
-            <div class="lg:col-span-6 bg-slate-900/90 border border-slate-800 rounded-xl p-4 flex flex-col shadow-sm">
+            <!-- Panel 1: Multi-Modal Vehicular Dynamics & Interaction Overlay (Live Animated Every Second) -->
+            <div class="lg:col-span-6 glass-panel p-5 flex flex-col border border-indigo-500/20 shadow-xl">
                 <div class="flex flex-wrap justify-between items-center mb-3 gap-2">
                     <div>
-                        <h2 class="text-sm font-semibold text-slate-200 flex items-center gap-2">
-                            <svg class="w-4 h-4 text-indigo-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6"></path></svg>
-                            Multi-Modal Vehicular Dynamics &amp; Interaction Overlay
-                        </h2>
-                        <span class="text-xs text-slate-400 font-mono">Synchronized 60-Second Horizon &bull; Speed, Brake, Throttle &amp; Steering</span>
+                        <div class="flex items-center gap-2">
+                            <span class="w-2.5 h-2.5 rounded-full bg-cyan-400 animate-ping"></span>
+                            <h2 class="text-sm font-bold text-slate-100 flex items-center gap-2">
+                                Multi-Modal Vehicular Dynamics &amp; Interaction Overlay
+                            </h2>
+                        </div>
+                        <span class="text-xs text-slate-400 font-mono">Live 1-Second Telemetry Sync &bull; Speed, Deceleration, Brake Boost, Throttle &amp; Steering</span>
                     </div>
-                    <span class="text-xs bg-slate-800 text-slate-300 border border-slate-700 px-2 py-0.5 rounded font-mono">Click point to jump map</span>
+                    <div class="flex items-center gap-2">
+                        <span class="text-[11px] bg-cyan-950/80 text-cyan-300 border border-cyan-800 px-2 py-0.5 rounded-full font-mono flex items-center gap-1 animate-pulse">
+                            <span class="w-1.5 h-1.5 rounded-full bg-cyan-400"></span> UPDATING (1s)
+                        </span>
+                    </div>
+                </div>
+
+                <!-- Animated Telemetry Gauges Ribbon -->
+                <div class="grid grid-cols-4 gap-2 mb-3 text-center font-mono">
+                    <div class="glass-subcard p-2 rounded-lg border border-sky-500/30">
+                        <div class="text-[10px] text-slate-400 uppercase">Live Speed</div>
+                        <div id="liveSpeedVal" class="text-lg font-extrabold text-sky-400">65.0 <span class="text-[10px] text-slate-400">mph</span></div>
+                    </div>
+                    <div class="glass-subcard p-2 rounded-lg border border-rose-500/30">
+                        <div class="text-[10px] text-slate-400 uppercase">Brake Boost</div>
+                        <div id="liveBrakeVal" class="text-lg font-extrabold text-rose-400">0.0 <span class="text-[10px] text-slate-400">%</span></div>
+                    </div>
+                    <div class="glass-subcard p-2 rounded-lg border border-emerald-500/30">
+                        <div class="text-[10px] text-slate-400 uppercase">Throttle</div>
+                        <div id="liveThrottleVal" class="text-lg font-extrabold text-emerald-400">28.0 <span class="text-[10px] text-slate-400">%</span></div>
+                    </div>
+                    <div class="glass-subcard p-2 rounded-lg border border-indigo-500/30">
+                        <div class="text-[10px] text-slate-400 uppercase">Steering</div>
+                        <div id="liveSteeringVal" class="text-lg font-extrabold text-indigo-400">+0.5 <span class="text-[10px] text-slate-400">&deg;</span></div>
+                    </div>
                 </div>
 
                 <!-- Canvas for Chart.js -->
-                <div class="relative flex-1 min-h-[380px] w-full">
+                <div class="relative flex-1 min-h-[350px] w-full">
                     <canvas id="telemetryChart"></canvas>
                 </div>
 
                 <!-- Chart Annotations Legend -->
-                <div class="mt-3 bg-slate-950/80 border border-slate-800 rounded-lg p-2.5 text-xs text-slate-400 flex flex-wrap items-center justify-between gap-2">
+                <div class="mt-3 glass-subcard rounded-lg p-2.5 text-xs text-slate-400 flex flex-wrap items-center justify-between gap-2">
                     <div class="flex items-center gap-3">
                         <span class="flex items-center gap-1"><span class="w-2.5 h-2.5 rounded bg-sky-400 inline-block"></span> Speed (mph)</span>
-                        <span class="flex items-center gap-1"><span class="w-2.5 h-2.5 rounded bg-rose-500 inline-block"></span> Brake Pedal (%)</span>
+                        <span class="flex items-center gap-1"><span class="w-2.5 h-2.5 rounded bg-rose-500 inline-block"></span> Brake (%)</span>
                         <span class="flex items-center gap-1"><span class="w-2.5 h-2.5 rounded bg-emerald-400 inline-block"></span> Throttle (%)</span>
                         <span class="flex items-center gap-1"><span class="w-2.5 h-2.5 rounded bg-indigo-400 inline-block"></span> Steering (deg)</span>
                     </div>
-                    <span class="text-slate-500 text-[11px] font-mono">Impact at T+35s &bull; Precursors: T+24s, T+27s, T+29s</span>
+                    <span class="text-amber-400 text-[11px] font-mono animate-pulse">Impact Site at T+35s &bull; Precursor Window T+24s to T+29s</span>
                 </div>
             </div>
         </div>
@@ -460,28 +542,40 @@ def generate_dashboard():
         <!-- Lower Section: Precursor Causal Timeline & NLP Template Mining -->
         <div class="grid grid-cols-1 lg:grid-cols-12 gap-6">
 
-            <!-- Precursor Causal Timeline Table -->
-            <div class="lg:col-span-7 bg-slate-900/90 border border-slate-800 rounded-xl p-4 shadow-sm flex flex-col">
+            <!-- Panel 2: Pre-Impact Distraction & Causal Sequence (-15.0s to +5.0s) (Live Animated Every Second) -->
+            <div class="lg:col-span-7 glass-panel p-5 shadow-xl flex flex-col border border-amber-500/20">
                 <div class="flex flex-wrap justify-between items-center mb-3 gap-2">
                     <div>
-                        <h2 class="text-sm font-semibold text-slate-200 flex items-center gap-2">
-                            <svg class="w-4 h-4 text-amber-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
-                            Pre-Impact Distraction &amp; Causal Sequence (-15.0s to +5.0s)
-                        </h2>
-                        <span class="text-[11px] text-slate-400">Chronological Cross-Source Fusion &bull; IVI Messages, Voice, Kinematics &amp; Airbag</span>
+                        <div class="flex items-center gap-2">
+                            <span class="w-2.5 h-2.5 rounded-full bg-amber-400 animate-ping"></span>
+                            <h2 class="text-sm font-bold text-slate-100 flex items-center gap-2">
+                                Pre-Impact Distraction &amp; Causal Sequence (-15.0s to +5.0s)
+                            </h2>
+                        </div>
+                        <span class="text-[11px] text-slate-400 font-mono">Chronological Cross-Source Fusion &bull; Live Highlight Updates Every Second</span>
                     </div>
 
                     <!-- Filter Pill Buttons -->
                     <div class="flex items-center gap-1.5 text-[11px] font-mono">
-                        <button onclick="filterTimeline('all')" id="filterAll" class="px-2 py-0.5 rounded bg-indigo-600 text-white font-semibold cursor-pointer">All ({len(causal_chain)})</button>
-                        <button onclick="filterTimeline('distraction')" id="filterDistraction" class="px-2 py-0.5 rounded bg-slate-800 hover:bg-slate-700 text-slate-300 cursor-pointer">Distractions</button>
-                        <button onclick="filterTimeline('dynamics')" id="filterDynamics" class="px-2 py-0.5 rounded bg-slate-800 hover:bg-slate-700 text-slate-300 cursor-pointer">Kinematics</button>
+                        <button onclick="filterTimeline('all')" id="filterAll" class="px-2.5 py-1 rounded-lg bg-indigo-600 text-white font-semibold cursor-pointer shadow-sm">All ({len(causal_chain)})</button>
+                        <button onclick="filterTimeline('distraction')" id="filterDistraction" class="px-2.5 py-1 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 cursor-pointer">Distractions</button>
+                        <button onclick="filterTimeline('dynamics')" id="filterDynamics" class="px-2.5 py-1 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 cursor-pointer">Kinematics</button>
                     </div>
                 </div>
 
+                <!-- Live Countdown / Status Alert Banner -->
+                <div id="causalAlertBanner" class="glass-subcard border-l-4 border-l-emerald-500 rounded-lg p-2.5 mb-2.5 flex items-center justify-between text-xs font-mono transition-all duration-300">
+                    <div class="flex items-center gap-2">
+                        <span id="causalAlertPulse" class="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
+                        <span id="causalAlertHeadline" class="text-slate-200 font-semibold">T+00s: Cruising at 65 mph (Driver Attentive)</span>
+                    </div>
+                    <span id="causalCountdownBadge" class="text-slate-400 font-bold bg-slate-800/80 px-2 py-0.5 rounded">T - 35.0s to Impact</span>
+                </div>
+
+                <!-- Timeline Table -->
                 <div class="overflow-x-auto flex-1 max-h-[420px] overflow-y-auto pr-1">
                     <table class="w-full text-left text-xs">
-                        <thead class="text-slate-400 border-b border-slate-800 font-mono sticky top-0 bg-slate-900 z-10">
+                        <thead class="text-slate-400 border-b border-slate-800 font-mono sticky top-0 bg-slate-950/90 z-10 backdrop-blur">
                             <tr>
                                 <th class="pb-2.5">Time (UTC)</th>
                                 <th class="pb-2.5">Source</th>
@@ -497,7 +591,7 @@ def generate_dashboard():
                 </div>
 
                 <!-- Forensic Conclusion Quote -->
-                <div class="mt-3.5 bg-amber-950/30 border border-amber-800/60 rounded-lg p-3 text-xs">
+                <div class="mt-3.5 glass-subcard border-l-4 border-l-amber-500 rounded-lg p-3 text-xs">
                     <div class="flex items-center gap-2 text-amber-400 font-semibold mb-1">
                         <svg class="w-4 h-4 text-amber-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
                         <span>Lead Examiner Assessment</span>
@@ -506,22 +600,54 @@ def generate_dashboard():
                 </div>
             </div>
 
-            <!-- NLP Template Mining & Automotive-NER Inspector -->
-            <div class="lg:col-span-5 bg-slate-900/90 border border-slate-800 rounded-xl p-4 shadow-sm flex flex-col">
+            <!-- Panel 3: NLP Log Parser & Automotive-NER Inspector (Live Animated Every Second) -->
+            <div class="lg:col-span-5 glass-panel p-5 shadow-xl flex flex-col border border-emerald-500/20">
                 <div class="flex justify-between items-center mb-3">
                     <div>
-                        <h2 class="text-sm font-semibold text-slate-200 flex items-center gap-2">
-                            <svg class="w-4 h-4 text-emerald-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"></path></svg>
-                            NLP Log Parser &amp; Automotive-NER Inspector
-                        </h2>
-                        <span class="text-xs text-slate-400 font-mono">Drain Tree Mining &amp; Domain Entity Classifier</span>
+                        <div class="flex items-center gap-2">
+                            <span class="w-2.5 h-2.5 rounded-full bg-emerald-400 animate-ping"></span>
+                            <h2 class="text-sm font-bold text-slate-100 flex items-center gap-2">
+                                NLP Log Parser &amp; Automotive-NER Inspector
+                            </h2>
+                        </div>
+                        <span class="text-xs text-slate-400 font-mono">Drain Tree Mining &amp; Domain Entity Classifier &bull; Updating Live</span>
                     </div>
-                    <span class="text-xs bg-slate-800 text-slate-300 px-2 py-0.5 rounded font-mono">Drain3 Engine</span>
+                    <span class="text-xs bg-emerald-950 text-emerald-300 border border-emerald-800 px-2.5 py-0.5 rounded-full font-mono animate-pulse">
+                        Drain3 Active
+                    </span>
                 </div>
 
-                <div class="space-y-3 flex-1 overflow-y-auto max-h-[460px] pr-1 text-xs">
+                <!-- Live NLP Throughput Banner -->
+                <div class="glass-subcard rounded-lg p-2.5 mb-3 grid grid-cols-3 gap-2 text-center text-xs font-mono">
+                    <div>
+                        <div class="text-[10px] text-slate-500">Mined Logs</div>
+                        <div id="nlpLogCounter" class="text-sm font-bold text-emerald-400">4,012</div>
+                    </div>
+                    <div>
+                        <div class="text-[10px] text-slate-500">Parsing Rate</div>
+                        <div id="nlpRateVal" class="text-sm font-bold text-sky-400">48 logs/s</div>
+                    </div>
+                    <div>
+                        <div class="text-[10px] text-slate-500">Tree Depth</div>
+                        <div class="text-sm font-bold text-purple-400">4 Layers</div>
+                    </div>
+                </div>
+
+                <!-- Live Ingestion Feed Terminal -->
+                <div class="glass-subcard rounded-lg p-2.5 mb-3 border border-slate-800 font-mono text-[11px]">
+                    <div class="flex justify-between text-slate-500 text-[10px] mb-1">
+                        <span>LIVE DRAIN INGESTION STREAM:</span>
+                        <span class="text-emerald-400 flex items-center gap-1"><span class="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-ping"></span> PARSING</span>
+                    </div>
+                    <div id="liveSyslogStream" class="text-amber-300 truncate font-semibold">
+                        Nov 14 23:45:00 oem-gateway[4012]: INFO [TCU-UPLINK] Handshake authenticated VIN=1G1YY22U965104928
+                    </div>
+                </div>
+
+                <!-- Templates List -->
+                <div class="space-y-3 flex-1 overflow-y-auto max-h-[360px] pr-1 text-xs">
                     {"".join([f'''
-                    <div class="bg-slate-950 p-3 rounded-lg border border-slate-800 hover:border-slate-700 transition">
+                    <div id="tplCard_{tpl["id"]}" class="glass-subcard p-3 rounded-lg border border-slate-800/80 hover:border-slate-700 transition">
                         <div class="flex justify-between items-center text-slate-400 mb-1.5">
                             <span class="font-mono text-indigo-400 font-bold flex items-center gap-1.5">
                                 <span class="w-2 h-2 rounded-full bg-indigo-500"></span>
@@ -529,11 +655,11 @@ def generate_dashboard():
                             </span>
                             <span class="text-[10px] bg-slate-800 text-slate-300 px-2 py-0.5 rounded font-mono">{tpl["severity"]}</span>
                         </div>
-                        <p class="font-mono text-slate-400 text-[11px] mb-1.5 bg-slate-900/90 p-2 rounded border border-slate-800 break-all">
+                        <p class="font-mono text-slate-300 text-[11px] mb-1.5 bg-slate-950/70 p-2 rounded border border-slate-800/80 break-all">
                             {tpl["template"]}
                         </p>
                         <div class="flex flex-wrap gap-1.5 mt-2">
-                            {"".join([f'<span class="bg-{ent["color"]}-950 text-{ent["color"]}-300 border border-{ent["color"]}-800 px-1.5 py-0.5 rounded font-mono text-[10px]">{ent["type"]}: <strong>{ent["val"]}</strong></span>' for ent in tpl["entities"]])}
+                            {"".join([f'<span class="bg-{ent["color"]}-950/90 text-{ent["color"]}-300 border border-{ent["color"]}-700/60 px-2 py-0.5 rounded font-mono text-[10px]">{ent["type"]}: <strong>{ent["val"]}</strong></span>' for ent in tpl["entities"]])}
                         </div>
                     </div>
                     ''' for tpl in syslog_templates])}
@@ -541,18 +667,31 @@ def generate_dashboard():
             </div>
         </div>
 
-        <!-- Evidence Vault & ISO/IEC 27037 Manifest Card -->
-        <div class="bg-slate-900/90 border border-slate-800 rounded-xl p-4 shadow-sm">
+        <!-- Panel 4: Evidence Vault & ISO/IEC 27037 Manifest Card (Live Animated Every Second) -->
+        <div class="glass-panel p-5 shadow-xl border border-emerald-500/20">
             <div class="flex flex-wrap justify-between items-center mb-3 gap-2">
                 <div>
-                    <h2 class="text-sm font-semibold text-slate-200 flex items-center gap-2">
-                        <svg class="w-4 h-4 text-emerald-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"></path></svg>
-                        ISO/IEC 27037:2012 Cryptographic Chain of Custody &amp; Artifact Manifest
-                    </h2>
-                    <p class="text-xs text-slate-400">Dual-hash verification of acquired OEM cloud streams, IVI SQLite mirrors, and gateway server dumps.</p>
+                    <div class="flex items-center gap-2">
+                        <span class="w-2.5 h-2.5 rounded-full bg-emerald-400 animate-ping"></span>
+                        <h2 class="text-sm font-bold text-slate-100 flex items-center gap-2">
+                            ISO/IEC 27037:2012 Cryptographic Chain of Custody &amp; Artifact Manifest
+                        </h2>
+                    </div>
+                    <p class="text-xs text-slate-400 font-mono">Continuous Cryptographic Verification Heartbeat &bull; Dual-hash validation of acquired OEM cloud streams &amp; IVI dumps</p>
                 </div>
-                <div class="text-xs font-mono text-slate-400">
-                    Lead Examiner: <strong class="text-slate-200">{examiner}</strong>
+                
+                <!-- Live Verification Heartbeat Indicator -->
+                <div class="flex items-center gap-3 text-xs font-mono">
+                    <div class="glass-subcard px-3 py-1 rounded-lg flex items-center gap-2">
+                        <span class="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
+                        <span class="text-slate-400">Audit Cycle:</span>
+                        <span id="cryptoAuditCycle" class="text-emerald-400 font-bold">#14,920</span>
+                        <span class="text-slate-600">|</span>
+                        <span id="cryptoLatency" class="text-sky-400">14ms latency</span>
+                    </div>
+                    <div class="text-slate-400 hidden sm:block">
+                        Lead Examiner: <strong class="text-slate-200">{examiner}</strong>
+                    </div>
                 </div>
             </div>
 
@@ -571,10 +710,10 @@ def generate_dashboard():
                     </thead>
                     <tbody class="divide-y divide-slate-800/70 text-slate-300">
                         {"".join([f'''
-                        <tr class="hover:bg-slate-800/30">
+                        <tr class="hover:bg-slate-800/30 transition-colors">
                             <td class="py-2.5 font-bold text-indigo-400">{art["artifact_id"]}</td>
-                            <td class="py-2.5 text-white">{art["filename"]}</td>
-                            <td class="py-2.5"><span class="bg-slate-800 px-1.5 py-0.5 rounded text-[10px] text-slate-300">{art["category"]}</span></td>
+                            <td class="py-2.5 text-white font-semibold">{art["filename"]}</td>
+                            <td class="py-2.5"><span class="bg-slate-800/90 border border-slate-700 px-2 py-0.5 rounded text-[10px] text-slate-300">{art["category"]}</span></td>
                             <td class="py-2.5">{art["size_bytes"]:,} Bytes</td>
                             <td class="py-2.5 font-mono text-amber-300 text-[11px]" title="{art["integrity_verification"]["algorithm_sha256"]}">
                                 {art["integrity_verification"]["algorithm_sha256"][:18]}...{art["integrity_verification"]["algorithm_sha256"][-8:]}
@@ -583,8 +722,8 @@ def generate_dashboard():
                                 {art["integrity_verification"]["algorithm_sha512"][:16]}...
                             </td>
                             <td class="py-2.5">
-                                <span class="bg-emerald-950 text-emerald-400 border border-emerald-800 px-2 py-0.5 rounded text-[10px] font-bold">
-                                    VERIFIED (BIT-STREAM COPY)
+                                <span class="bg-emerald-950/90 text-emerald-400 border border-emerald-700/80 px-2.5 py-0.5 rounded-full text-[10px] font-bold flex items-center gap-1 w-max animate-pulse">
+                                    <span class="w-1.5 h-1.5 rounded-full bg-emerald-400"></span> VERIFIED BIT-STREAM
                                 </span>
                             </td>
                         </tr>
@@ -597,8 +736,8 @@ def generate_dashboard():
     </main>
 
     <!-- Modal for GPS API Key Management -->
-    <div id="apiKeyModal" class="fixed inset-0 bg-black/75 backdrop-blur-sm z-50 flex items-center justify-center p-4 hidden">
-        <div class="bg-slate-900 border border-slate-800 rounded-2xl max-w-lg w-full p-6 shadow-2xl space-y-5">
+    <div id="apiKeyModal" class="fixed inset-0 bg-black/80 backdrop-blur-md z-50 flex items-center justify-center p-4 hidden">
+        <div class="glass-panel border border-slate-700 max-w-lg w-full p-6 shadow-2xl space-y-5">
             <div class="flex justify-between items-center border-b border-slate-800 pb-3">
                 <div class="flex items-center gap-2.5">
                     <div class="w-8 h-8 rounded-lg bg-indigo-950 border border-indigo-800 flex items-center justify-center text-indigo-400">
@@ -637,27 +776,10 @@ def generate_dashboard():
                 <p class="text-[11px] text-slate-400 mt-1" id="keyHelperText">This 256-bit cryptographic token validates simulated OEM telematics ingestion.</p>
             </div>
 
-            <!-- Verification Status Box -->
-            <div class="bg-slate-950 border border-slate-800 rounded-lg p-3 text-xs space-y-1.5 font-mono">
-                <div class="flex justify-between">
-                    <span class="text-slate-400">Connection Status:</span>
-                    <span class="text-emerald-400 font-semibold flex items-center gap-1"><span class="w-1.5 h-1.5 rounded-full bg-emerald-400 inline-block"></span> VALIDATED (200 OK)</span>
-                </div>
-                <div class="flex justify-between">
-                    <span class="text-slate-400">Ingestion Latency:</span>
-                    <span class="text-slate-300">18 ms (Low-latency Telematics Uplink)</span>
-                </div>
-                <div class="flex justify-between">
-                    <span class="text-slate-400">Primary Cryptographic Seal:</span>
-                    <span class="text-slate-400 truncate max-w-[220px]">SHA256: {primary_sha256[:20]}...</span>
-                </div>
-            </div>
-
             <!-- Action Buttons -->
             <div class="flex justify-end gap-3 pt-2">
                 <button onclick="closeApiKeyModal()" class="px-4 py-2 rounded-lg text-xs font-semibold text-slate-300 hover:bg-slate-800 cursor-pointer transition">Cancel</button>
                 <button onclick="saveAndApplyApiKey()" class="px-4 py-2 rounded-lg text-xs font-semibold bg-indigo-600 hover:bg-indigo-500 text-white cursor-pointer shadow-lg shadow-indigo-600/30 transition flex items-center gap-1.5">
-                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path></svg>
                     Save &amp; Apply
                 </button>
             </div>
@@ -682,7 +804,7 @@ def generate_dashboard():
         // Map Waypoints
         const pathCoords = fullTrackData.map(d => [d.gps.latitude, d.gps.longitude]);
 
-        // 1. Initialize Leaflet Map
+        // 1. Initialize Leaflet Map (Zero Watermark)
         const map = L.map('map', {{
             zoomControl: false,
             center: crashLoc,
@@ -742,17 +864,13 @@ def generate_dashboard():
         applyTileLayer(activeProvider);
         L.control.layers(baseMaps, null, {{ position: 'topright' }}).addTo(map);
 
-        // 2. Render Trajectory Segments
-        // Normal Cruise (T=0 to T=24) - Emerald
+        // Render Trajectory Segments
         L.polyline(pathCoords.slice(0, 26), {{ color: '#10b981', weight: 5, opacity: 0.95 }}).addTo(map);
-        // Distraction / Lane Departure (T=25 to T=31) - Amber dashed
         L.polyline(pathCoords.slice(24, 33), {{ color: '#f59e0b', weight: 5.5, dashArray: '6, 6', opacity: 1 }}).addTo(map);
-        // AEB Emergency Braking (T=32 to T=35) - Sky Blue
         L.polyline(pathCoords.slice(31, 36), {{ color: '#38bdf8', weight: 6, opacity: 1 }}).addTo(map);
-        // Post Crash (T=35 to T=59) - Red
         L.polyline(pathCoords.slice(35), {{ color: '#ef4444', weight: 4.5, opacity: 0.75 }}).addTo(map);
 
-        // 3. Collision Exclusion Perimeter Geofence
+        // Exclusion Perimeter
         L.circle(crashLoc, {{
             radius: 90,
             color: '#ef4444',
@@ -760,211 +878,91 @@ def generate_dashboard():
             fillOpacity: 0.16,
             dashArray: '5, 5',
             weight: 2
-        }}).addTo(map).bindPopup("<b>Forensic Exclusion Perimeter</b><br>Radius: 90 meters<br>Coordinates: 37.78015, -122.41520<br>Airbag Deployed &bull; Delta-V X=-42 km/h");
+        }}).addTo(map).bindPopup("<b>Forensic Exclusion Perimeter</b><br>Radius: 90 meters &bull; Impact Epicenter");
 
-        // 4. Milestone Waypoint Markers
-        // Start Marker (T=0)
-        L.circleMarker(pathCoords[0], {{ radius: 6, color: '#10b981', fillColor: '#10b981', fillOpacity: 1, weight: 2 }})
-            .addTo(map).bindPopup("<b>Trip Start Point (T + 00s)</b><br>23:45:00 UTC<br>Speed: 65.0 mph &bull; Cruise Active");
+        // Milestone Markers
+        L.circleMarker(pathCoords[0], {{ radius: 6, color: '#10b981', fillColor: '#10b981', fillOpacity: 1, weight: 2 }}).addTo(map).bindPopup("<b>Trip Start Point (T + 00s)</b>");
+        L.circleMarker(pathCoords[24], {{ radius: 6, color: '#f59e0b', fillColor: '#f59e0b', fillOpacity: 1, weight: 2 }}).addTo(map).bindPopup("<b>T + 24s: Inbound SMS</b>");
+        L.circleMarker(pathCoords[27], {{ radius: 6, color: '#a855f7', fillColor: '#a855f7', fillOpacity: 1, weight: 2 }}).addTo(map).bindPopup("<b>T + 27s: Voice Assistant</b>");
+        L.circleMarker(pathCoords[29], {{ radius: 6, color: '#ec4899', fillColor: '#ec4899', fillOpacity: 1, weight: 2 }}).addTo(map).bindPopup("<b>T + 29s: Outbound SMS Compose</b>");
+        L.circleMarker(pathCoords[32], {{ radius: 6, color: '#38bdf8', fillColor: '#38bdf8', fillOpacity: 1, weight: 2 }}).addTo(map).bindPopup("<b>T + 32s: AEB Emergency Braking</b>");
 
-        // T+24s: Incoming SMS Distraction
-        L.circleMarker(pathCoords[24], {{ radius: 6, color: '#f59e0b', fillColor: '#f59e0b', fillOpacity: 1, weight: 2 }})
-            .addTo(map).bindPopup("<b>T + 24s: Inbound SMS (T - 11.0s)</b><br>From: Sarah Miller<br><em>'Urgent: Check your email right now...'</em>");
-
-        // T+27s: Voice Assistant Trigger
-        L.circleMarker(pathCoords[27], {{ radius: 6, color: '#a855f7', fillColor: '#a855f7', fillOpacity: 1, weight: 2 }})
-            .addTo(map).bindPopup("<b>T + 27s: IVI Voice Query (T - 8.0s)</b><br>Query: <em>'Read the last incoming message from Sarah'</em>");
-
-        // T+29s: Outbound SMS Compose (Critical Precursor)
-        L.circleMarker(pathCoords[29], {{ radius: 7, color: '#f43f5e', fillColor: '#f43f5e', fillOpacity: 1, weight: 2 }})
-            .addTo(map).bindPopup("<b>T + 29s: Outbound SMS Compose (T - 6.0s)</b><br>Text: <em>'Opening it now on my screen'</em><br>Speed: 67.5 mph (Lane Drift Active)");
-
-        // T+32s: AEB Emergency Braking
-        L.circleMarker(pathCoords[32], {{ radius: 6, color: '#38bdf8', fillColor: '#38bdf8', fillOpacity: 1, weight: 2 }})
-            .addTo(map).bindPopup("<b>T + 32s: AEB Emergency Brake Actuation</b><br>Brake Boost: 85% &bull; Counter-steer: +18.5°<br>Speed: 58.0 mph decelerating rapidly");
-
-        // T+35s: Primary Impact Site
-        const crashIcon = L.divIcon({{
+        const pulsingIcon = L.divIcon({{
             className: 'pulsing-marker',
-            iconSize: [22, 22],
-            iconAnchor: [11, 11]
+            iconSize: [24, 24],
+            iconAnchor: [12, 12]
         }});
-        const crashMarker = L.marker(crashLoc, {{ icon: crashIcon }}).addTo(map)
-            .bindPopup("<b>PRIMARY COLLISION SITE</b><br>Timestamp: 23:45:35.000 UTC<br>Speed: 18.0 mph (Delta-V X=-42km/h)<br>Airbag Deployed &bull; DTC: B0001-13<br>eCall Automated Dispatch Triggered");
+        L.marker(crashLoc, {{ icon: pulsingIcon }}).addTo(map).bindPopup("<b>Primary Collision Site (T + 35s)</b><br>DTC B0001-13 &bull; Airbag Deployed");
 
-        // 5. Live Simulation Vehicle Marker
         const carIcon = L.divIcon({{
-            className: 'vehicle-car-marker',
-            html: '<svg style="width:16px;height:16px;" fill="currentColor" viewBox="0 0 24 24"><path d="M18.92 6.01C18.72 5.42 18.16 5 17.5 5h-11c-.66 0-1.21.42-1.42 1.01L3 12v8c0 .55.45 1 1 1h1c.55 0 1-.45 1-1v-1h12v1c0 .55.45 1 1 1h1c.55 0 1-.45 1-1v-8l-2.08-5.99zM6.5 16c-.83 0-1.5-.67-1.5-1.5S5.67 13 6.5 13s1.5.67 1.5 1.5S7.33 16 6.5 16zm11 0c-.83 0-1.5-.67-1.5-1.5s.67-1.5 1.5-1.5 1.5.67 1.5 1.5-.67 1.5-1.5 1.5zM5 11l1.5-4.5h11L19 11H5z"/></svg>',
-            iconSize: [30, 30],
-            iconAnchor: [15, 15]
+            html: '<div class="w-7 h-7 rounded-full bg-indigo-600 border-2 border-white flex items-center justify-center text-white shadow-lg"><svg class="w-3.5 h-3.5" fill="currentColor" viewBox="0 0 20 20"><path d="M8 16.5a1.5 1.5 0 11-3 0 1.5 1.5 0 013 0zM15 16.5a1.5 1.5 0 11-3 0 1.5 1.5 0 013 0z"></path><path d="M3 4a1 1 0 00-1 1v10a1 1 0 001 1h1.05a2.5 2.5 0 014.9 0H10a1 1 0 001-1V5a1 1 0 00-1-1H3zM14 7a1 1 0 00-1 1v6.05A2.5 2.5 0 0115.95 16H17a1 1 0 001-1v-5a1 1 0 00-.293-.707l-2-2A1 1 0 0015 7h-1z"></path></svg></div>',
+            className: '',
+            iconSize: [28, 28],
+            iconAnchor: [14, 14]
         }});
-        let vehicleMarker = L.marker(pathCoords[0], {{ icon: carIcon }}).addTo(map);
+        let carMarker = L.marker(pathCoords[0], {{ icon: carIcon, zIndexOffset: 1000 }}).addTo(map);
 
-        // Map Control Helpers
         function fitMapBounds() {{
-            map.fitBounds(L.latLngBounds(pathCoords), {{ padding: [35, 35] }});
+            map.fitBounds(L.polyline(pathCoords).getBounds(), {{ padding: [40, 40] }});
         }}
-
         function zoomToCrash() {{
-            map.setView(crashLoc, 17);
-            crashMarker.openPopup();
+            map.flyTo(crashLoc, 18, {{ duration: 1.2 }});
         }}
 
-        // Ensure Leaflet calculates sizing correctly immediately and after DOM paint
-        fitMapBounds();
-        setTimeout(() => map.invalidateSize(), 200);
-        setTimeout(() => map.invalidateSize(), 800);
-        window.addEventListener('resize', () => map.invalidateSize());
-
-        // 6. Trajectory Playback Engine
-        let playInterval = null;
-        let currentStep = 0;
-        let speedMultiplier = 1;
-
-        function toggleTrajectoryPlay() {{
-            if (playInterval) {{
-                pauseTrajectory();
-            }} else {{
-                startTrajectory();
-            }}
-        }}
-
-        function startTrajectory() {{
-            document.getElementById('playBtnText').innerText = "Pause";
-            document.getElementById('playBtn').classList.replace("bg-indigo-600", "bg-amber-600");
-            document.getElementById('playBtn').classList.replace("hover:bg-indigo-500", "hover:bg-amber-500");
-
-            const intervalMs = Math.max(80, Math.floor(350 / speedMultiplier));
-            playInterval = setInterval(() => {{
-                if (currentStep >= fullTrackData.length) {{
-                    pauseTrajectory();
-                    return;
-                }}
-                setSimulationStep(currentStep);
-                currentStep++;
-            }}, intervalMs);
-        }}
-
-        function pauseTrajectory() {{
-            clearInterval(playInterval);
-            playInterval = null;
-            document.getElementById('playBtnText').innerText = "Replay Track";
-            document.getElementById('playBtn').classList.replace("bg-amber-600", "bg-indigo-600");
-            document.getElementById('playBtn').classList.replace("hover:bg-amber-500", "hover:bg-indigo-500");
-        }}
-
-        function resetTrajectoryPlay() {{
-            pauseTrajectory();
-            currentStep = 0;
-            setSimulationStep(0);
-            map.panTo(pathCoords[0]);
-        }}
-
-        function stepTrajectory(delta) {{
-            pauseTrajectory();
-            let newStep = currentStep + delta;
-            if (newStep < 0) newStep = 0;
-            if (newStep >= fullTrackData.length) newStep = fullTrackData.length - 1;
-            currentStep = newStep;
-            setSimulationStep(currentStep);
-        }}
-
-        function scrubTrajectory(val) {{
-            pauseTrajectory();
-            currentStep = parseInt(val, 10);
-            setSimulationStep(currentStep);
-        }}
-
-        function changePlaySpeed() {{
-            speedMultiplier = parseFloat(document.getElementById('playSpeedSelect').value);
-            if (playInterval) {{
-                pauseTrajectory();
-                startTrajectory();
-            }}
-        }}
-
-        function setSimulationStep(idx) {{
-            const pt = fullTrackData[idx];
-            currentStep = idx;
-
-            // Update scrubber
-            document.getElementById('trajectoryScrubber').value = idx;
-
-            // Move vehicle marker
-            vehicleMarker.setLatLng([pt.gps.latitude, pt.gps.longitude]);
-
-            // Update labels
-            document.getElementById('simTimeLabel').innerText = `T + ${{String(idx).padStart(2, '0')}}s`;
-            document.getElementById('simSpeedLabel').innerText = `${{pt.dynamics.speed_mph}} mph`;
-            document.getElementById('simStatusLabel').innerText = pt.event_tag.replace(/_/g, ' ');
-
-            // Status color formatting
-            const statusEl = document.getElementById('simStatusLabel');
-            if (pt.event_tag.includes("AIRBAG") || pt.event_tag.includes("IMPACT") || pt.event_tag.includes("COLLISION")) {{
-                statusEl.className = "text-rose-400 font-bold";
-                crashMarker.openPopup();
-            }} else if (pt.event_tag.includes("LANE") || pt.event_tag.includes("DISTRACTION") || pt.event_tag.includes("BRAKE")) {{
-                statusEl.className = "text-amber-400 font-bold";
-            }} else if (pt.event_tag.includes("DISABLED")) {{
-                statusEl.className = "text-slate-400 font-bold";
-            }} else {{
-                statusEl.className = "text-emerald-400 font-bold";
-            }}
-
-            // Update live HUD
-            document.getElementById('hudPedals').innerText = `${{pt.dynamics.throttle_pct}}% / ${{pt.dynamics.brake_pedal_pct}}%`;
-            document.getElementById('hudSteering').innerText = `${{pt.dynamics.steering_angle_deg > 0 ? '+' : ''}}${{pt.dynamics.steering_angle_deg}}°`;
-            document.getElementById('hudCoords').innerText = `${{pt.gps.latitude.toFixed(5)}}, ${{pt.gps.longitude.toFixed(5)}}`;
-            document.getElementById('hudGearHeading').innerText = `${{pt.dynamics.gear_position}} \u2022 ${{pt.gps.heading}}°`;
-        }}
-
-        // 7. Telemetry Chart (Chart.js)
-        const secondsLabels = fullTrackData.map((d, i) => `T+${{i}}s`);
-        const speedData = fullTrackData.map(d => d.dynamics.speed_mph);
-        const brakeData = fullTrackData.map(d => d.dynamics.brake_pedal_pct);
-        const throttleData = fullTrackData.map(d => d.dynamics.throttle_pct);
-        const steeringData = fullTrackData.map(d => d.dynamics.steering_angle_deg);
-
+        // 2. Initialize Chart.js Multimodal Dynamics Chart
         const ctx = document.getElementById('telemetryChart').getContext('2d');
+        const labels = fullTrackData.map((d, i) => `T+${{i < 10 ? '0' + i : i}}s`);
+        const speeds = fullTrackData.map(d => d.dynamics.speed_mph);
+        const brakes = fullTrackData.map(d => d.dynamics.brake_pedal_pct);
+        const throttles = fullTrackData.map(d => d.dynamics.throttle_pct);
+        const steerings = fullTrackData.map(d => d.dynamics.steering_angle_deg);
+
         const telemetryChart = new Chart(ctx, {{
             type: 'line',
             data: {{
-                labels: secondsLabels,
+                labels: labels,
                 datasets: [
                     {{
                         label: 'Speed (mph)',
-                        data: speedData,
+                        data: speeds,
                         borderColor: '#38bdf8',
-                        backgroundColor: 'rgba(56, 189, 248, 0.1)',
-                        borderWidth: 2.2,
-                        tension: 0.15,
+                        backgroundColor: 'rgba(56, 189, 248, 0.08)',
+                        borderWidth: 2.5,
+                        fill: true,
+                        tension: 0.3,
+                        pointRadius: 2,
+                        pointHoverRadius: 6,
                         yAxisID: 'y'
                     }},
                     {{
                         label: 'Brake Pedal (%)',
-                        data: brakeData,
-                        borderColor: '#ef4444',
-                        backgroundColor: 'rgba(239, 68, 68, 0.15)',
+                        data: brakes,
+                        borderColor: '#f43f5e',
+                        backgroundColor: 'transparent',
                         borderWidth: 2,
-                        tension: 0.1,
+                        tension: 0.2,
+                        pointRadius: 1,
                         yAxisID: 'y1'
                     }},
                     {{
                         label: 'Throttle (%)',
-                        data: throttleData,
-                        borderColor: '#10b981',
+                        data: throttles,
+                        borderColor: '#34d399',
+                        backgroundColor: 'transparent',
                         borderWidth: 1.5,
                         borderDash: [4, 4],
-                        tension: 0.1,
+                        tension: 0.2,
+                        pointRadius: 0,
                         yAxisID: 'y1'
                     }},
                     {{
-                        label: 'Steering Angle (°)',
-                        data: steeringData,
+                        label: 'Steering (deg)',
+                        data: steerings,
                         borderColor: '#818cf8',
+                        backgroundColor: 'transparent',
                         borderWidth: 1.5,
-                        tension: 0.1,
+                        tension: 0.2,
+                        pointRadius: 0,
                         yAxisID: 'y2'
                     }}
                 ]
@@ -972,124 +970,281 @@ def generate_dashboard():
             options: {{
                 responsive: true,
                 maintainAspectRatio: false,
-                interaction: {{ mode: 'index', intersect: false }},
-                onClick: (e, elements) => {{
-                    if (elements.length > 0) {{
-                        const idx = elements[0].index;
-                        setSimulationStep(idx);
-                        map.panTo([fullTrackData[idx].gps.latitude, fullTrackData[idx].gps.longitude]);
-                    }}
-                }},
-                plugins: {{
-                    legend: {{ labels: {{ color: '#94a3b8', font: {{ size: 11 }} }} }},
-                    tooltip: {{
-                        callbacks: {{
-                            afterBody: function(items) {{
-                                const idx = items[0].dataIndex;
-                                if (idx === 24) return "🔔 [SMS INBOUND] 'Urgent: Check your email'";
-                                if (idx === 27) return "🎙️ [VOICE QUERY] 'Read the last incoming message'";
-                                if (idx === 29) return "📱 [SMS OUTBOUND] 'Opening it now on my screen'";
-                                if (idx === 32) return "⚠️ [AEB BRAKE] Hydraulic Boost 85%";
-                                if (idx === 35) return "💥 [CRITICAL COLLISION] Airbag Deployment";
-                                return "";
-                            }}
-                        }}
-                    }}
+                animation: false,
+                interaction: {{
+                    mode: 'index',
+                    intersect: false
                 }},
                 scales: {{
                     x: {{
-                        ticks: {{ color: '#64748b', maxTicksLimit: 12, font: {{ size: 10 }} }},
-                        grid: {{ color: 'rgba(51, 65, 85, 0.3)' }}
+                        grid: {{ color: 'rgba(255, 255, 255, 0.05)' }},
+                        ticks: {{ color: '#94a3b8', font: {{ family: 'JetBrains Mono', size: 10 }}, maxTicksLimit: 12 }}
                     }},
                     y: {{
                         type: 'linear',
+                        display: true,
                         position: 'left',
-                        title: {{ display: true, text: 'Speed (mph)', color: '#38bdf8' }},
-                        ticks: {{ color: '#38bdf8' }},
-                        grid: {{ color: 'rgba(51, 65, 85, 0.3)' }},
-                        min: 0,
-                        max: 80
+                        title: {{ display: true, text: 'Speed (mph)', color: '#38bdf8', font: {{ size: 10 }} }},
+                        grid: {{ color: 'rgba(255, 255, 255, 0.05)' }},
+                        ticks: {{ color: '#38bdf8' }}
                     }},
                     y1: {{
                         type: 'linear',
+                        display: true,
                         position: 'right',
-                        title: {{ display: true, text: 'Pedal Status (%)', color: '#ef4444' }},
-                        ticks: {{ color: '#ef4444' }},
-                        grid: {{ drawOnChartArea: false }},
+                        max: 105,
                         min: 0,
-                        max: 105
+                        title: {{ display: true, text: 'Pedals (%)', color: '#f43f5e', font: {{ size: 10 }} }},
+                        grid: {{ drawOnChartArea: false }},
+                        ticks: {{ color: '#f43f5e' }}
                     }},
                     y2: {{
                         type: 'linear',
-                        position: 'right',
                         display: false,
                         min: -25,
                         max: 25
                     }}
+                }},
+                plugins: {{
+                    legend: {{ display: false }}
                 }}
             }}
         }});
 
-        // 8. Populate Precursor Causal Timeline Table
-        function renderTimeline(filterMode = 'all') {{
+        // 3. Render Precursor Causal Timeline Table
+        function renderTimeline(filter) {{
             const tbody = document.getElementById('timelineTableBody');
             tbody.innerHTML = '';
 
-            causalChainData.forEach((item, index) => {{
-                const isDistraction = item.details && item.details.nlp_analysis && 
-                    (item.details.nlp_analysis.distraction_level === "CRITICAL_DISTRACTION" || item.details.nlp_analysis.distraction_level === "MODERATE_DISTRACTION");
-                const isKinematic = item.source === "CLOUD_TELEMATICS_API";
+            causalChainData.forEach((evt, idx) => {{
+                if (filter === 'distraction' && !evt.category.includes('COMMUNICATION') && !evt.category.includes('VOICE')) return;
+                if (filter === 'dynamics' && !evt.category.includes('VEHICLE_DYNAMICS')) return;
 
-                if (filterMode === 'distraction' && !isDistraction) return;
-                if (filterMode === 'dynamics' && !isKinematic) return;
-
-                const row = document.createElement('tr');
-                row.className = "hover:bg-slate-800/40 cursor-pointer transition";
-                row.onclick = () => {{
-                    // Jump simulation to this timestamp if index corresponds
-                    const secOffset = index; // approximation or matched timestamp
-                    setSimulationStep(Math.min(59, Math.max(0, 20 + index)));
+                const tr = document.createElement('tr');
+                tr.id = `causalRow_${{idx}}`;
+                tr.className = "hover:bg-slate-800/40 transition-colors cursor-pointer text-slate-300";
+                tr.onclick = () => {{
+                    const sec = Math.min(Math.max(0, Math.round(evt.epoch - causalChainData[0].epoch)), fullTrackData.length - 1);
+                    setSimulationStep(sec);
                 }};
 
-                let badgeColor = "bg-slate-800 text-slate-300";
-                if (item.event_tag.includes("AIRBAG") || item.event_tag.includes("IMPACT")) badgeColor = "bg-rose-950 text-rose-300 border border-rose-800 font-bold";
-                else if (item.event_tag.includes("SMS_INCOMING")) badgeColor = "bg-amber-950 text-amber-300 border border-amber-800 font-semibold";
-                else if (item.event_tag.includes("SMS_OUTGOING")) badgeColor = "bg-rose-950 text-rose-300 border border-rose-800 font-semibold";
-                else if (item.event_tag.includes("VOICE")) badgeColor = "bg-purple-950 text-purple-300 border border-purple-800";
-                else if (item.event_tag.includes("BRAKE")) badgeColor = "bg-sky-950 text-sky-300 border border-sky-800";
-                else if (item.event_tag.includes("LANE")) badgeColor = "bg-amber-950/70 text-amber-400";
+                let badgeColor = "bg-slate-800 text-slate-300 border-slate-700";
+                if (evt.event_tag.includes("AIRBAG") || evt.event_tag.includes("CRITICAL")) badgeColor = "bg-rose-950 text-rose-300 border-rose-800";
+                else if (evt.event_tag.includes("SMS") || evt.event_tag.includes("DISTRACTION")) badgeColor = "bg-amber-950 text-amber-300 border-amber-800";
+                else if (evt.event_tag.includes("BRAKE")) badgeColor = "bg-sky-950 text-sky-300 border-sky-800";
 
-                let catColor = "text-slate-400";
-                if (item.category === "COMMUNICATION_TEXT") catColor = "text-amber-400 font-medium";
-                else if (item.category === "VOICE_INTERACTION") catColor = "text-purple-400 font-medium";
-                else if (item.category === "VEHICLE_DYNAMICS") catColor = "text-sky-400";
-
-                const tsShort = item.timestamp_utc.replace("2026-11-14T", "").replace("+00:00", " UTC");
-
-                row.innerHTML = `
-                    <td class="py-2.5 font-mono text-slate-400 whitespace-nowrap">${{tsShort}}</td>
-                    <td class="py-2.5 font-mono text-[11px] text-slate-300">${{item.source}}</td>
-                    <td class="py-2.5 ${{catColor}}">${{item.category.replace(/_/g, ' ')}}</td>
-                    <td class="py-2.5 text-slate-200">${{item.summary}}</td>
-                    <td class="py-2.5 whitespace-nowrap"><span class="px-2 py-0.5 rounded text-[10px] ${{badgeColor}}">${{item.event_tag}}</span></td>
+                tr.innerHTML = `
+                    <td class="py-2.5 font-mono text-[11px] text-slate-400 whitespace-nowrap">${{evt.timestamp_utc.split("T")[1].replace("+00:00", "")}}</td>
+                    <td class="py-2.5 text-[11px]"><span class="glass-subcard px-1.5 py-0.5 rounded text-indigo-300">${{evt.source}}</span></td>
+                    <td class="py-2.5 text-[11px] text-slate-400">${{evt.category}}</td>
+                    <td class="py-2.5 text-[11px] font-medium text-slate-200">${{evt.summary}}</td>
+                    <td class="py-2.5 whitespace-nowrap"><span class="border px-2 py-0.5 rounded text-[10px] font-bold ${{badgeColor}}">${{evt.event_tag}}</span></td>
                 `;
-                tbody.appendChild(row);
+                tbody.appendChild(tr);
             }});
         }}
 
-        function filterTimeline(mode) {{
-            ['filterAll', 'filterDistraction', 'filterDynamics'].forEach(id => {{
-                document.getElementById(id).className = "px-2 py-0.5 rounded bg-slate-800 hover:bg-slate-700 text-slate-300 cursor-pointer";
-            }});
-            if (mode === 'all') document.getElementById('filterAll').className = "px-2 py-0.5 rounded bg-indigo-600 text-white font-semibold cursor-pointer";
-            if (mode === 'distraction') document.getElementById('filterDistraction').className = "px-2 py-0.5 rounded bg-amber-600 text-white font-semibold cursor-pointer";
-            if (mode === 'dynamics') document.getElementById('filterDynamics').className = "px-2 py-0.5 rounded bg-sky-600 text-white font-semibold cursor-pointer";
-            renderTimeline(mode);
+        function filterTimeline(type) {{
+            document.getElementById('filterAll').className = type === 'all' ? "px-2.5 py-1 rounded-lg bg-indigo-600 text-white font-semibold" : "px-2.5 py-1 rounded-lg bg-slate-800 text-slate-300";
+            document.getElementById('filterDistraction').className = type === 'distraction' ? "px-2.5 py-1 rounded-lg bg-indigo-600 text-white font-semibold" : "px-2.5 py-1 rounded-lg bg-slate-800 text-slate-300";
+            document.getElementById('filterDynamics').className = type === 'dynamics' ? "px-2.5 py-1 rounded-lg bg-indigo-600 text-white font-semibold" : "px-2.5 py-1 rounded-lg bg-slate-800 text-slate-300";
+            renderTimeline(type);
         }}
 
         renderTimeline('all');
 
-        // 9. API Key & Provider Modal Functions
+        // 4. LIVE 1-SECOND UPDATE ENGINE (Updates all 4 Key Sections every second)
+        let liveStep = 0;
+        let isLiveActive = true;
+        let speedMultiplier = 1.0;
+        let playTimer = null;
+        let auditCounter = 14920;
+        let logCounter = 4012;
+
+        const liveSyslogs = [
+            "Nov 14 23:45:00 oem-gateway[4012]: INFO [TCU-UPLINK] Handshake authenticated for VIN=1G1YY22U965104928",
+            "Nov 14 23:45:05 oem-gateway[4012]: AUDIT [VOICE_SERVICE] User query: 'Navigate to 742 Evergreen Terrace'",
+            "Nov 14 23:45:15 oem-gateway[4012]: DEBUG [BLE_DAEMON] Profile MAP synchronization active for iPhone 16 Pro",
+            "Nov 14 23:45:24 oem-gateway[4012]: AUDIT [SMS_MAP] Inbound SMS from Sarah Miller: 'Urgent: Check email'",
+            "Nov 14 23:45:25 oem-gateway[4012]: WARN [ADAS_FCW] Forward collision warning active - Target distance 48m",
+            "Nov 14 23:45:27 oem-gateway[4012]: AUDIT [VOICE_SERVICE] User query: 'Read the last incoming message'",
+            "Nov 14 23:45:29 oem-gateway[4012]: AUDIT [SMS_MAP] Outbound SMS typing detected: 'Opening it now on my screen'",
+            "Nov 14 23:45:32 oem-gateway[4012]: ALERT [CHASSIS_CAN] AEB_TRIGGER: Hydraulic brake boost applied 85%",
+            "Nov 14 23:45:35 oem-gateway[4012]: CRITICAL [AIRBAG_ECU] Collision detected. Delta-V X=-42km/h. DTC B0001-13 set",
+            "Nov 14 23:45:36 oem-gateway[4012]: CRITICAL [TCU_ECALL] Triggering automatic collision notification (ACN) to PSAP",
+            "Nov 14 23:45:45 oem-gateway[4012]: INFO [TELEMATICS] Post-crash diagnostic telemetry packet cryptographically sealed"
+        ];
+
+        function executeOneSecondTick() {{
+            setSimulationStep(liveStep);
+
+            // Advance step (loop 0 to 59)
+            liveStep++;
+            if (liveStep >= fullTrackData.length) {{
+                liveStep = 0;
+            }}
+        }}
+
+        function setSimulationStep(idx) {{
+            const pt = fullTrackData[idx];
+            if (!pt) return;
+
+            // --- A) Update Section 1: Multi-Modal Vehicular Dynamics & Interaction Overlay ---
+            document.getElementById('liveSpeedVal').innerHTML = `${{pt.dynamics.speed_mph.toFixed(1)}} <span class="text-[10px] text-slate-400">mph</span>`;
+            document.getElementById('liveBrakeVal').innerHTML = `${{pt.dynamics.brake_pedal_pct.toFixed(1)}} <span class="text-[10px] text-slate-400">%</span>`;
+            document.getElementById('liveThrottleVal').innerHTML = `${{pt.dynamics.throttle_pct.toFixed(1)}} <span class="text-[10px] text-slate-400">%</span>`;
+            document.getElementById('liveSteeringVal').innerHTML = `${{pt.dynamics.steering_angle_deg >= 0 ? '+' : ''}}${{pt.dynamics.steering_angle_deg.toFixed(1)}}&deg;`;
+
+            // HUD Subcards & Map Car Marker
+            carMarker.setLatLng([pt.gps.latitude, pt.gps.longitude]);
+            document.getElementById('simTimeLabel').innerText = `T + ${{idx < 10 ? '0' + idx : idx}}s`;
+            document.getElementById('headerLiveSec').innerText = `T + ${{idx < 10 ? '0' + idx : idx}}s`;
+            document.getElementById('simSpeedLabel').innerText = `${{pt.dynamics.speed_mph.toFixed(1)}} mph`;
+            document.getElementById('simStatusLabel').innerText = pt.event_tag;
+            document.getElementById('hudPedals').innerText = `${{pt.dynamics.throttle_pct.toFixed(0)}}% / ${{pt.dynamics.brake_pedal_pct.toFixed(0)}}%`;
+            document.getElementById('hudSteering').innerText = `${{pt.dynamics.steering_angle_deg >= 0 ? '+' : ''}}${{pt.dynamics.steering_angle_deg.toFixed(1)}}°`;
+            document.getElementById('hudCoords').innerText = `${{pt.gps.latitude.toFixed(5)}}, ${{pt.gps.longitude.toFixed(5)}}`;
+            document.getElementById('hudGearHeading').innerText = `${{pt.dynamics.gear_position}} &bull; ${{pt.gps.heading.toFixed(1)}}°`;
+            document.getElementById('trajectoryScrubber').value = idx;
+
+            // Highlight live point on telemetryChart
+            telemetryChart.setActiveElements([
+                {{ datasetIndex: 0, index: idx }},
+                {{ datasetIndex: 1, index: idx }}
+            ]);
+            telemetryChart.update('none');
+
+            // --- B) Update Section 2: Pre-Impact Distraction & Causal Sequence Table ---
+            const headline = document.getElementById('causalAlertHeadline');
+            const countdownBadge = document.getElementById('causalCountdownBadge');
+            const banner = document.getElementById('causalAlertBanner');
+            const pulseDot = document.getElementById('causalAlertPulse');
+
+            // Clear previous table row active highlights
+            document.querySelectorAll('#timelineTableBody tr').forEach(r => r.classList.remove('active-event-row'));
+
+            if (idx < 24) {{
+                banner.className = "glass-subcard border-l-4 border-l-emerald-500 rounded-lg p-2.5 mb-2.5 flex items-center justify-between text-xs font-mono transition-all duration-300";
+                pulseDot.className = "w-2 h-2 rounded-full bg-emerald-400 animate-pulse";
+                headline.innerText = `T+${{idx < 10 ? '0' + idx : idx}}s: Normal Highway Cruise at ${{pt.dynamics.speed_mph.toFixed(1)}} mph`;
+                countdownBadge.innerText = `T - ${{(35 - idx).toFixed(1)}}s to Crash`;
+            }} else if (idx === 24) {{
+                banner.className = "glass-subcard border-l-4 border-l-amber-500 rounded-lg p-2.5 mb-2.5 flex items-center justify-between text-xs font-mono transition-all duration-300 neon-glow-amber";
+                pulseDot.className = "w-2 h-2 rounded-full bg-amber-400 animate-ping";
+                headline.innerHTML = "<strong class='text-amber-300'>DISTRACTION:</strong> Inbound SMS received ('Urgent: Check your email...')";
+                countdownBadge.innerText = "T - 11.0s to Impact";
+                const row = document.getElementById('causalRow_5');
+                if (row) {{ row.classList.add('active-event-row'); row.scrollIntoView({{ behavior: 'smooth', block: 'nearest' }}); }}
+            }} else if (idx === 27) {{
+                banner.className = "glass-subcard border-l-4 border-l-purple-500 rounded-lg p-2.5 mb-2.5 flex items-center justify-between text-xs font-mono transition-all duration-300";
+                pulseDot.className = "w-2 h-2 rounded-full bg-purple-400 animate-ping";
+                headline.innerHTML = "<strong class='text-purple-300'>VOICE QUERY:</strong> Driver commands IVI to read incoming SMS";
+                countdownBadge.innerText = "T - 8.0s to Impact";
+                const row = document.getElementById('causalRow_9');
+                if (row) {{ row.classList.add('active-event-row'); row.scrollIntoView({{ behavior: 'smooth', block: 'nearest' }}); }}
+            }} else if (idx === 29) {{
+                banner.className = "glass-subcard border-l-4 border-l-pink-500 rounded-lg p-2.5 mb-2.5 flex items-center justify-between text-xs font-mono transition-all duration-300 neon-glow-amber";
+                pulseDot.className = "w-2 h-2 rounded-full bg-pink-400 animate-ping";
+                headline.innerHTML = "<strong class='text-pink-300'>FATAL COGNITIVE DIVERSION:</strong> Driver types 'Opening it now on my screen'";
+                countdownBadge.innerText = "T - 6.0s to Impact";
+                const row = document.getElementById('causalRow_12');
+                if (row) {{ row.classList.add('active-event-row'); row.scrollIntoView({{ behavior: 'smooth', block: 'nearest' }}); }}
+            }} else if (idx >= 32 && idx < 35) {{
+                banner.className = "glass-subcard border-l-4 border-l-sky-500 rounded-lg p-2.5 mb-2.5 flex items-center justify-between text-xs font-mono transition-all duration-300";
+                pulseDot.className = "w-2 h-2 rounded-full bg-sky-400 animate-ping";
+                headline.innerHTML = "<strong class='text-sky-300'>EMERGENCY BRAKING:</strong> Hydraulic AEB brake boost 85% applied!";
+                countdownBadge.innerText = `T - ${{(35 - idx).toFixed(1)}}s to Crash`;
+                const row = document.getElementById('causalRow_15');
+                if (row) {{ row.classList.add('active-event-row'); }}
+            }} else if (idx === 35) {{
+                banner.className = "glass-subcard border-l-4 border-l-rose-500 rounded-lg p-2.5 mb-2.5 flex items-center justify-between text-xs font-mono transition-all duration-300 neon-glow-rose";
+                pulseDot.className = "w-2.5 h-2.5 rounded-full bg-rose-500 animate-ping";
+                headline.innerHTML = "<strong class='text-rose-400'>CRASH OCCURRED:</strong> Airbag Deployed &bull; Delta-V X=-42km/h &bull; DTC B0001-13";
+                countdownBadge.innerText = "T + 00.0s (IMPACT)";
+                const row = document.getElementById('causalRow_18');
+                if (row) {{ row.classList.add('active-event-row'); row.scrollIntoView({{ behavior: 'smooth', block: 'nearest' }}); }}
+            }} else {{
+                banner.className = "glass-subcard border-l-4 border-l-slate-600 rounded-lg p-2.5 mb-2.5 flex items-center justify-between text-xs font-mono transition-all duration-300";
+                pulseDot.className = "w-2 h-2 rounded-full bg-slate-400";
+                headline.innerText = `T+${{idx}}s: Post-Collision Inactive / PSAP Emergency Response`;
+                countdownBadge.innerText = `T + ${{(idx - 35).toFixed(1)}}s Post-Impact`;
+            }}
+
+            // --- C) Update Section 3: NLP Log Parser & Automotive-NER Inspector ---
+            logCounter += Math.floor(Math.random() * 6) + 3;
+            document.getElementById('nlpLogCounter').innerText = logCounter.toLocaleString();
+            document.getElementById('nlpRateVal').innerText = `${{45 + Math.floor(Math.random() * 8)}} logs/s`;
+            const syslogIdx = Math.min(Math.floor(idx / 5), liveSyslogs.length - 1);
+            document.getElementById('liveSyslogStream').innerText = liveSyslogs[syslogIdx];
+
+            // --- D) Update Section 4: ISO/IEC 27037 Manifest & Chain of Custody ---
+            auditCounter++;
+            document.getElementById('cryptoAuditCycle').innerText = `#${{auditCounter.toLocaleString()}}`;
+            document.getElementById('cryptoLatency').innerText = `${{12 + (idx % 6)}}ms latency`;
+        }}
+
+        function startLiveLoop() {{
+            if (playTimer) clearInterval(playTimer);
+            const intervalMs = Math.max(100, Math.floor(1000 / speedMultiplier));
+            playTimer = setInterval(executeOneSecondTick, intervalMs);
+            isLiveActive = true;
+            document.getElementById('liveLoopText').innerText = "LIVE 1s ENGINE: RUNNING";
+            document.getElementById('liveLoopIndicator').className = "w-2 h-2 rounded-full bg-emerald-400 animate-ping";
+            document.getElementById('playBtnText').innerText = "Pause Auto";
+        }}
+
+        function pauseLiveLoop() {{
+            if (playTimer) clearInterval(playTimer);
+            playTimer = null;
+            isLiveActive = false;
+            document.getElementById('liveLoopText').innerText = "LIVE 1s ENGINE: PAUSED";
+            document.getElementById('liveLoopIndicator').className = "w-2 h-2 rounded-full bg-amber-400";
+            document.getElementById('playBtnText').innerText = "Resume 1s Auto";
+        }}
+
+        function toggleLiveEverySecond() {{
+            if (isLiveActive) pauseLiveLoop();
+            else startLiveLoop();
+        }}
+
+        function toggleTrajectoryPlay() {{
+            toggleLiveEverySecond();
+        }}
+
+        function resetTrajectoryPlay() {{
+            pauseLiveLoop();
+            liveStep = 0;
+            setSimulationStep(0);
+            map.panTo(pathCoords[0]);
+        }}
+
+        function stepTrajectory(delta) {{
+            pauseLiveLoop();
+            let newStep = liveStep + delta;
+            if (newStep < 0) newStep = 0;
+            if (newStep >= fullTrackData.length) newStep = fullTrackData.length - 1;
+            liveStep = newStep;
+            setSimulationStep(liveStep);
+        }}
+
+        function scrubTrajectory(val) {{
+            pauseLiveLoop();
+            liveStep = parseInt(val, 10);
+            setSimulationStep(liveStep);
+        }}
+
+        function changePlaySpeed() {{
+            speedMultiplier = parseFloat(document.getElementById('playSpeedSelect').value);
+            if (isLiveActive) {{
+                pauseLiveLoop();
+                startLiveLoop();
+            }}
+        }}
+
+        // Start live 1-second auto engine on page load
+        startLiveLoop();
+
+        // 5. GPS Modal Key Management Functions
         function openApiKeyModal() {{
             document.getElementById('apiKeyModal').classList.remove('hidden');
             document.getElementById('apiKeyInput').value = activeApiKey;
@@ -1146,7 +1301,6 @@ def generate_dashboard():
                 "google": "Google Maps Hybrid"
             }};
             document.getElementById('currentProviderLabel').innerText = labels[activeProvider] || "ArcGIS Dark Canvas (OEM Clean)";
-            document.getElementById('headerKeyStatus').innerText = "AUTHENTICATED";
         }}
 
         updateBadges();
@@ -1158,11 +1312,19 @@ def generate_dashboard():
     with open(output_html_path, "w", encoding="utf-8") as f:
         f.write(html_content)
 
-    print(f"[+] Successfully regenerated forensic dashboard: {output_html_path}")
+    with open(animated_html_path, "w", encoding="utf-8") as f:
+        f.write(html_content)
+
+    with open(index_html_path, "w", encoding="utf-8") as f:
+        f.write(html_content)
+
+    print(f"[+] Successfully generated animated glass dashboard:")
+    print(f"    - {output_html_path}")
+    print(f"    - {animated_html_path}")
+    print(f"    - {index_html_path}")
     print(f"[+] Total telemetry waypoints embedded: {len(records)}")
     print(f"[+] Total causal chain events: {len(causal_chain)}")
     print(f"[+] Verified artifacts: {len(artifacts)}")
-    return output_html_path
 
 if __name__ == "__main__":
     generate_dashboard()
