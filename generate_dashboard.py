@@ -145,6 +145,9 @@ def generate_dashboard():
             z-index: 10;
             border-radius: 0.75rem;
         }}
+        .leaflet-dark-tiles {{
+            filter: brightness(0.6) invert(1) contrast(3) hue-rotate(200deg) saturate(0.3) brightness(0.7) !important;
+        }}
         .pulsing-marker {{
             width: 22px;
             height: 22px;
@@ -329,6 +332,10 @@ def generate_dashboard():
                         <span class="text-[11px] text-slate-400 font-mono">GNSS Real High-Frequency Telematics ({len(records)} Waypoints)</span>
                     </div>
                     <div class="flex items-center gap-1.5">
+                        <a href="forensic_map.html" target="_blank" title="Open Fullscreen Standalone Map" class="px-2.5 py-1 bg-emerald-950/80 hover:bg-emerald-900 text-emerald-300 rounded text-xs font-mono transition border border-emerald-800 flex items-center gap-1 cursor-pointer">
+                            <svg class="w-3.5 h-3.5 text-emerald-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"></path></svg>
+                            Full Map File
+                        </a>
                         <button onclick="fitMapBounds()" title="Fit entire trajectory to view" class="px-2.5 py-1 bg-slate-800 hover:bg-slate-700 text-slate-200 rounded text-xs font-mono transition border border-slate-700 flex items-center gap-1 cursor-pointer">
                             <svg class="w-3.5 h-3.5 text-sky-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 8V4m0 0h4M4 4l5 5m11-1V4m0 0h-4m4 0l-5 5M4 16v4m0 0h4m-4 0l5-5m11 5l-5-5m5 5v-4m0 4h-4"></path></svg>
                             Fit Track
@@ -348,7 +355,7 @@ def generate_dashboard():
                 <div class="bg-slate-950/80 border border-slate-800 rounded px-3 py-1.5 mb-2.5 text-[11px] font-mono flex items-center justify-between">
                     <span class="text-slate-400 flex items-center gap-1.5">
                         <span class="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
-                        Active Tile Feed: <strong class="text-slate-200" id="currentProviderLabel">CARTO Dark Matter (OEM Telematics)</strong>
+                        Active Tile Feed: <strong class="text-slate-200" id="currentProviderLabel">ArcGIS Dark Canvas (OEM Clean)</strong>
                     </span>
                     <span class="text-slate-400 truncate max-w-[240px]" id="currentKeyMasked">Key: GNSS-ISO27037...</span>
                 </div>
@@ -609,10 +616,10 @@ def generate_dashboard():
             <div>
                 <label class="block text-xs font-semibold text-slate-300 mb-1.5">Select GPS / Map Tile Provider</label>
                 <select id="mapProviderSelect" onchange="handleProviderChange()" class="w-full bg-slate-950 border border-slate-700 rounded-lg px-3 py-2 text-xs text-white focus:outline-none focus:border-indigo-500 font-mono">
-                    <option value="oem_cloud">CARTO Dark Matter (OEM Telematics Default)</option>
+                    <option value="oem_cloud">ArcGIS Dark Canvas (OEM Clean - Zero Watermark)</option>
                     <option value="esri_sat">Esri World Imagery (High-Resolution Satellite)</option>
+                    <option value="osm_dark">OpenStreetMap Cyber Dark (Zero Watermark)</option>
                     <option value="osm_standard">OpenStreetMap Standard (Global Street Map)</option>
-                    <option value="osm_human">OpenStreetMap Humanitarian (High-Contrast Roads)</option>
                     <option value="google">Google Maps Hybrid (Satellite &amp; Roads)</option>
                 </select>
             </div>
@@ -687,22 +694,28 @@ def generate_dashboard():
 
         // Tile Layer Definitions
         const baseMaps = {{
-            "CARTO Dark Matter (OEM)": L.tileLayer('https://{{s}}.basemaps.cartocdn.com/dark_all/{{z}}/{{x}}/{{y}}{{r}}.png', {{
-                subdomains: 'abcd',
-                maxZoom: 20,
-                attribution: '&copy; OpenStreetMap &copy; CARTO | OEM Cloud Feed'
-            }}),
+            "ArcGIS Dark Canvas (OEM Clean)": L.layerGroup([
+                L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/Canvas/World_Dark_Gray_Base/MapServer/tile/{{z}}/{{y}}/{{x}}', {{
+                    maxZoom: 16,
+                    attribution: 'Tiles &copy; Esri &mdash; Esri, DeLorme, NAVTEQ'
+                }}),
+                L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/Canvas/World_Dark_Gray_Reference/MapServer/tile/{{z}}/{{y}}/{{x}}', {{
+                    maxZoom: 16,
+                    attribution: 'Reference &copy; Esri'
+                }})
+            ]),
             "Esri Satellite Imagery": L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{{z}}/{{y}}/{{x}}', {{
                 maxZoom: 19,
                 attribution: 'Tiles &copy; Esri &mdash; High-Res Earth Imagery'
             }}),
+            "OpenStreetMap Cyber Dark": L.tileLayer('https://tile.openstreetmap.org/{{z}}/{{x}}/{{y}}.png', {{
+                maxZoom: 19,
+                className: 'leaflet-dark-tiles',
+                attribution: '&copy; OpenStreetMap contributors'
+            }}),
             "OpenStreetMap Standard": L.tileLayer('https://tile.openstreetmap.org/{{z}}/{{x}}/{{y}}.png', {{
                 maxZoom: 19,
                 attribution: '&copy; OpenStreetMap contributors'
-            }}),
-            "OpenStreetMap Humanitarian": L.tileLayer('https://{{s}}.tile.openstreetmap.fr/hot/{{z}}/{{x}}/{{y}}.png', {{
-                maxZoom: 19,
-                attribution: '&copy; OpenStreetMap contributors, Tiles style Humanitarian OpenStreetMap Team'
             }}),
             "Google Maps Hybrid": L.tileLayer('https://mt1.google.com/vt/lyrs=y&x={{x}}&y={{y}}&z={{z}}', {{
                 maxZoom: 20,
@@ -715,14 +728,14 @@ def generate_dashboard():
             Object.values(baseMaps).forEach(layer => map.removeLayer(layer));
             if (provider === 'esri_sat') {{
                 baseMaps["Esri Satellite Imagery"].addTo(map);
+            }} else if (provider === 'osm_dark') {{
+                baseMaps["OpenStreetMap Cyber Dark"].addTo(map);
             }} else if (provider === 'osm_standard') {{
                 baseMaps["OpenStreetMap Standard"].addTo(map);
-            }} else if (provider === 'osm_human') {{
-                baseMaps["OpenStreetMap Humanitarian"].addTo(map);
             }} else if (provider === 'google') {{
                 baseMaps["Google Maps Hybrid"].addTo(map);
             }} else {{
-                baseMaps["CARTO Dark Matter (OEM)"].addTo(map);
+                baseMaps["ArcGIS Dark Canvas (OEM Clean)"].addTo(map);
             }}
         }}
 
@@ -1095,12 +1108,12 @@ def generate_dashboard():
                 helper.innerHTML = 'Google Maps Hybrid raster tiles enabled. Use personal key or proxy.';
             }} else if (provider === 'esri_sat') {{
                 helper.innerHTML = 'Esri World Imagery satellite feed enabled (High-resolution global imagery).';
-            }} else if (provider === 'osm_human') {{
-                helper.innerHTML = 'OpenStreetMap Humanitarian tile server selected for maximum road contrast.';
+            }} else if (provider === 'osm_dark') {{
+                helper.innerHTML = 'OpenStreetMap Cyber Dark tile server enabled with zero watermark.';
             }} else if (provider === 'osm_standard') {{
                 helper.innerHTML = 'OpenStreetMap Standard tile layer requires no custom API token.';
             }} else {{
-                helper.innerHTML = 'CARTO Dark Matter OEM telematics feed authenticated with cryptographic key.';
+                helper.innerHTML = 'ArcGIS Dark Canvas OEM feed active with zero API key required and no watermarks.';
             }}
         }}
 
@@ -1126,13 +1139,13 @@ def generate_dashboard():
             const masked = activeApiKey.length > 18 ? activeApiKey.substring(0, 14) + "..." : activeApiKey;
             document.getElementById('currentKeyMasked').innerText = "Key: " + masked;
             const labels = {{
-                "oem_cloud": "CARTO Dark Matter (OEM Telematics)",
+                "oem_cloud": "ArcGIS Dark Canvas (OEM Clean)",
                 "esri_sat": "Esri World Imagery (Satellite)",
+                "osm_dark": "OpenStreetMap Cyber Dark",
                 "osm_standard": "OpenStreetMap Standard",
-                "osm_human": "OpenStreetMap Humanitarian",
                 "google": "Google Maps Hybrid"
             }};
-            document.getElementById('currentProviderLabel').innerText = labels[activeProvider] || "CARTO Dark Matter (OEM Telematics)";
+            document.getElementById('currentProviderLabel').innerText = labels[activeProvider] || "ArcGIS Dark Canvas (OEM Clean)";
             document.getElementById('headerKeyStatus').innerText = "AUTHENTICATED";
         }}
 

@@ -1,0 +1,499 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AutoForens-NLP | Forensic GIS & Crash Reconstruction Map</title>
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Leaflet CSS & JS -->
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        body, html {
+            height: 100%;
+            margin: 0;
+            padding: 0;
+            overflow: hidden;
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+            background-color: #030712;
+            color: #f3f4f6;
+        }
+        .font-mono {
+            font-family: 'JetBrains Mono', monospace;
+        }
+        #map {
+            height: 100vh;
+            width: 100vw;
+            z-index: 1;
+            background-color: #030712;
+        }
+        .leaflet-dark-tiles {
+            filter: brightness(0.6) invert(1) contrast(3) hue-rotate(200deg) saturate(0.3) brightness(0.7) !important;
+        }
+        .pulsing-marker {
+            width: 26px;
+            height: 26px;
+            background: #ef4444;
+            border-radius: 50%;
+            border: 3px solid #ffffff;
+            box-shadow: 0 0 0 rgba(239, 68, 68, 0.7);
+            animation: pulse-ring 1.3s infinite;
+        }
+        @keyframes pulse-ring {
+            0% {
+                transform: scale(0.9);
+                box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.85);
+            }
+            70% {
+                transform: scale(1.15);
+                box-shadow: 0 0 0 20px rgba(239, 68, 68, 0);
+            }
+            100% {
+                transform: scale(0.9);
+                box-shadow: 0 0 0 0 rgba(239, 68, 68, 0);
+            }
+        }
+        .custom-popup .leaflet-popup-content-wrapper {
+            background: #0f172a;
+            color: #e2e8f0;
+            border: 1px solid #334155;
+            border-radius: 0.75rem;
+            padding: 4px;
+            box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.6);
+        }
+        .custom-popup .leaflet-popup-tip {
+            background: #0f172a;
+        }
+        /* Custom scrollbar */
+        ::-webkit-scrollbar {
+            width: 6px;
+        }
+        ::-webkit-scrollbar-track {
+            background: #0b0f19;
+        }
+        ::-webkit-scrollbar-thumb {
+            background: #1e293b;
+            border-radius: 4px;
+        }
+    </style>
+</head>
+<body class="relative">
+
+    <!-- Top Navigation Header -->
+    <header class="absolute top-0 left-0 right-0 z-30 bg-slate-950/85 backdrop-blur-md border-b border-slate-800/80 px-4 py-2.5 flex items-center justify-between shadow-2xl">
+        <div class="flex items-center gap-3">
+            <a href="dashboard.html" class="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-slate-900 border border-slate-700/80 hover:bg-slate-800 text-slate-300 hover:text-white text-xs font-mono transition">
+                <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18"></path></svg>
+                Full Dashboard
+            </a>
+            <div class="h-4 w-px bg-slate-800"></div>
+            <div class="flex items-center gap-2">
+                <span class="w-2.5 h-2.5 rounded-full bg-emerald-400 animate-pulse"></span>
+                <h1 class="text-sm font-bold text-white tracking-wide">AutoForens-NLP</h1>
+                <span class="text-xs bg-indigo-950 text-indigo-300 border border-indigo-800 px-2 py-0.5 rounded font-mono">GIS Reconstruction</span>
+            </div>
+            <span class="hidden md:inline-block text-xs text-slate-400 font-mono">| CASE CAS-2026-CAV-089 &bull; VIN 1G1YY22U965104928</span>
+        </div>
+
+        <div class="flex items-center gap-2">
+            <!-- Active Layer Indicator -->
+            <div class="hidden sm:flex items-center gap-1.5 bg-slate-900/90 border border-slate-800 px-3 py-1 rounded-lg text-xs font-mono">
+                <span class="text-slate-400">Map Layer:</span>
+                <span id="activeLayerLabel" class="text-emerald-400 font-semibold">ArcGIS Dark Canvas</span>
+            </div>
+
+            <!-- Quick Action Buttons -->
+            <button onclick="fitMapBounds()" class="px-3 py-1.5 rounded-lg bg-slate-900 border border-slate-700 hover:bg-slate-800 text-slate-200 text-xs font-mono transition flex items-center gap-1.5 cursor-pointer">
+                <svg class="w-3.5 h-3.5 text-sky-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 8V4m0 0h4M4 4l5 5m11-1V4m0 0h-4m4 0l-5 5M4 16v4m0 0h4m-4 0l5-5m11 5l-5-5m5 5v-4m0 4h-4"></path></svg>
+                Fit Track
+            </button>
+            <button onclick="zoomToCrash()" class="px-3 py-1.5 rounded-lg bg-rose-950/80 border border-rose-800 hover:bg-rose-900 text-rose-200 text-xs font-mono transition flex items-center gap-1.5 cursor-pointer">
+                <svg class="w-3.5 h-3.5 text-rose-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"></path></svg>
+                Impact Site
+            </button>
+        </div>
+    </header>
+
+    <!-- Floating Telemetry HUD (Top Left) -->
+    <aside class="absolute top-16 left-4 z-20 w-80 bg-slate-950/90 backdrop-blur-md border border-slate-800 rounded-xl p-4 shadow-2xl space-y-3 pointer-events-auto">
+        <div class="flex justify-between items-center border-b border-slate-800/80 pb-2">
+            <span class="text-xs font-bold text-slate-200 uppercase tracking-wider flex items-center gap-1.5">
+                <svg class="w-4 h-4 text-indigo-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"></path></svg>
+                Live Dynamics HUD
+            </span>
+            <span id="hudSimTime" class="text-xs font-mono text-amber-400 font-semibold">T + 00.0s</span>
+        </div>
+
+        <!-- Telemetry Gauges Grid -->
+        <div class="grid grid-cols-2 gap-2 text-xs font-mono">
+            <div class="bg-slate-900/80 border border-slate-800/90 rounded-lg p-2.5">
+                <div class="text-[10px] text-slate-400 uppercase">Speed</div>
+                <div class="text-lg font-bold text-emerald-400" id="hudSpeed">65.0 <span class="text-xs text-slate-400">mph</span></div>
+                <div class="text-[10px] text-slate-500" id="hudSpeedKph">104.6 km/h</div>
+            </div>
+            <div class="bg-slate-900/80 border border-slate-800/90 rounded-lg p-2.5">
+                <div class="text-[10px] text-slate-400 uppercase">Brake Boost</div>
+                <div class="text-lg font-bold text-sky-400" id="hudBrake">0.0 <span class="text-xs text-slate-400">%</span></div>
+                <div class="text-[10px] text-slate-500" id="hudBrakeStatus">Cruise / Inactive</div>
+            </div>
+            <div class="bg-slate-900/80 border border-slate-800/90 rounded-lg p-2.5">
+                <div class="text-[10px] text-slate-400 uppercase">Throttle</div>
+                <div class="text-base font-bold text-amber-400" id="hudThrottle">28.0%</div>
+                <div class="text-[10px] text-slate-500">Gear: <span id="hudGear" class="text-slate-300">D</span></div>
+            </div>
+            <div class="bg-slate-900/80 border border-slate-800/90 rounded-lg p-2.5">
+                <div class="text-[10px] text-slate-400 uppercase">Steering Angle</div>
+                <div class="text-base font-bold text-indigo-300" id="hudSteering">0.5&deg;</div>
+                <div class="text-[10px] text-slate-500">Heading: <span id="hudHeading">42.1&deg;</span></div>
+            </div>
+        </div>
+
+        <!-- GPS Coordinates -->
+        <div class="bg-slate-900/60 border border-slate-800/80 rounded-lg p-2 text-[11px] font-mono space-y-1">
+            <div class="flex justify-between">
+                <span class="text-slate-400">GNSS Fix:</span>
+                <span class="text-slate-200" id="hudCoords">37.77490, -122.41940</span>
+            </div>
+            <div class="flex justify-between">
+                <span class="text-slate-400">Event Status:</span>
+                <span class="text-emerald-400 font-semibold truncate max-w-[170px]" id="hudEventTag">NORMAL_CRUISE</span>
+            </div>
+        </div>
+
+        <!-- Dynamic Distraction Callout -->
+        <div id="hudDistractionBox" class="bg-amber-950/40 border border-amber-800/80 rounded-lg p-2 text-xs hidden">
+            <div class="flex items-center gap-1.5 text-amber-400 font-bold text-[11px] mb-1">
+                <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"></path></svg>
+                DRIVER DISTRACTION DETECTED
+            </div>
+            <p id="hudDistractionText" class="text-amber-200 text-[11px] italic font-mono"></p>
+        </div>
+    </aside>
+
+    <!-- Map Canvas Element (Zero Watermark) -->
+    <main id="map"></main>
+
+    <!-- Bottom Timeline & Scrubber Bar -->
+    <footer class="absolute bottom-4 left-4 right-4 z-20 max-w-4xl mx-auto bg-slate-950/90 backdrop-blur-md border border-slate-800 rounded-2xl p-4 shadow-2xl space-y-3 pointer-events-auto">
+        <div class="flex flex-wrap items-center justify-between gap-3 text-xs font-mono">
+            <div class="flex items-center gap-2">
+                <button id="playBtn" onclick="toggleTrajectoryPlay()" class="px-4 py-2 bg-indigo-600 hover:bg-indigo-500 text-white rounded-lg font-semibold flex items-center gap-2 cursor-pointer transition shadow-lg shadow-indigo-600/30">
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z"></path><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
+                    <span id="playBtnText">Replay Track</span>
+                </button>
+                <button onclick="stepTrajectory(-1)" class="p-2 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-lg cursor-pointer transition" title="Step -1s">&larr;</button>
+                <button onclick="stepTrajectory(1)" class="p-2 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-lg cursor-pointer transition" title="Step +1s">&rarr;</button>
+                <button onclick="resetTrajectoryPlay()" class="px-3 py-2 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-lg cursor-pointer transition">Reset</button>
+            </div>
+
+            <div class="flex items-center gap-3">
+                <span class="text-slate-400">Playback Speed:</span>
+                <select id="playSpeedSelect" onchange="changePlaySpeed()" class="bg-slate-900 border border-slate-700 rounded px-2.5 py-1 text-xs text-white focus:outline-none">
+                    <option value="0.5">0.5x</option>
+                    <option value="1.0" selected>1.0x (Realtime)</option>
+                    <option value="2.0">2.0x</option>
+                    <option value="4.0">4.0x</option>
+                </select>
+                <div class="h-4 w-px bg-slate-800"></div>
+                <div class="flex items-center gap-2">
+                    <span class="text-slate-400">Position:</span>
+                    <span id="timelineTimestamp" class="text-amber-400 font-bold">23:45:00 UTC</span>
+                </div>
+            </div>
+        </div>
+
+        <!-- Scrubber Slider -->
+        <div class="space-y-1">
+            <input type="range" id="trajectorySlider" min="0" max="59" value="0" oninput="scrubTrajectory(this.value)" class="w-full accent-indigo-500 cursor-pointer h-2 bg-slate-800 rounded-lg">
+            <div class="flex justify-between text-[10px] text-slate-400 font-mono">
+                <span class="text-emerald-400">T=00s (Trip Start)</span>
+                <span class="text-amber-400">T=24s (Inbound SMS)</span>
+                <span class="text-purple-400">T=27s (Voice Query)</span>
+                <span class="text-sky-400">T=32s (AEB Brake)</span>
+                <span class="text-rose-400 font-bold">T=35s (CRASH &amp; AIRBAG)</span>
+                <span class="text-slate-500">T=59s (PSAP eCall)</span>
+            </div>
+        </div>
+    </footer>
+
+    <!-- Leaflet & Telemetry Core Application Logic -->
+    <script>
+        // Embedded High-Frequency Vehicle Telematics Records
+        const trackData = [{"timestamp": "2026-11-14T23:45:00Z", "vin": "1G1YY22U965104928", "gps": {"latitude": 37.7749, "longitude": -122.4194, "heading": 42.1, "altitude_m": 16.4}, "dynamics": {"speed_kph": 104.61, "speed_mph": 65.0, "brake_pedal_pct": 0.0, "throttle_pct": 28.0, "steering_angle_deg": 0.5, "seatbelt_driver_buckled": true, "gear_position": "D"}, "dtc_faults": [], "event_tag": "NORMAL_CRUISE"}, {"timestamp": "2026-11-14T23:45:01Z", "vin": "1G1YY22U965104928", "gps": {"latitude": 37.77505, "longitude": -122.41928, "heading": 42.1, "altitude_m": 16.4}, "dynamics": {"speed_kph": 105.41, "speed_mph": 65.5, "brake_pedal_pct": 0.0, "throttle_pct": 28.0, "steering_angle_deg": 0.5, "seatbelt_driver_buckled": true, "gear_position": "D"}, "dtc_faults": [], "event_tag": "NORMAL_CRUISE"}, {"timestamp": "2026-11-14T23:45:02Z", "vin": "1G1YY22U965104928", "gps": {"latitude": 37.775200000000005, "longitude": -122.41915999999999, "heading": 42.1, "altitude_m": 16.4}, "dynamics": {"speed_kph": 106.22, "speed_mph": 66.0, "brake_pedal_pct": 0.0, "throttle_pct": 28.0, "steering_angle_deg": 0.5, "seatbelt_driver_buckled": true, "gear_position": "D"}, "dtc_faults": [], "event_tag": "NORMAL_CRUISE"}, {"timestamp": "2026-11-14T23:45:03Z", "vin": "1G1YY22U965104928", "gps": {"latitude": 37.77535, "longitude": -122.41904, "heading": 42.1, "altitude_m": 16.4}, "dynamics": {"speed_kph": 104.61, "speed_mph": 65.0, "brake_pedal_pct": 0.0, "throttle_pct": 28.0, "steering_angle_deg": 0.5, "seatbelt_driver_buckled": true, "gear_position": "D"}, "dtc_faults": [], "event_tag": "NORMAL_CRUISE"}, {"timestamp": "2026-11-14T23:45:04Z", "vin": "1G1YY22U965104928", "gps": {"latitude": 37.7755, "longitude": -122.41892, "heading": 42.1, "altitude_m": 16.4}, "dynamics": {"speed_kph": 105.41, "speed_mph": 65.5, "brake_pedal_pct": 0.0, "throttle_pct": 28.0, "steering_angle_deg": 0.5, "seatbelt_driver_buckled": true, "gear_position": "D"}, "dtc_faults": [], "event_tag": "NORMAL_CRUISE"}, {"timestamp": "2026-11-14T23:45:05Z", "vin": "1G1YY22U965104928", "gps": {"latitude": 37.77565, "longitude": -122.41879999999999, "heading": 42.1, "altitude_m": 16.4}, "dynamics": {"speed_kph": 106.22, "speed_mph": 66.0, "brake_pedal_pct": 0.0, "throttle_pct": 28.0, "steering_angle_deg": 0.5, "seatbelt_driver_buckled": true, "gear_position": "D"}, "dtc_faults": [], "event_tag": "NORMAL_CRUISE"}, {"timestamp": "2026-11-14T23:45:06Z", "vin": "1G1YY22U965104928", "gps": {"latitude": 37.775800000000004, "longitude": -122.41868, "heading": 42.1, "altitude_m": 16.4}, "dynamics": {"speed_kph": 104.61, "speed_mph": 65.0, "brake_pedal_pct": 0.0, "throttle_pct": 28.0, "steering_angle_deg": 0.5, "seatbelt_driver_buckled": true, "gear_position": "D"}, "dtc_faults": [], "event_tag": "NORMAL_CRUISE"}, {"timestamp": "2026-11-14T23:45:07Z", "vin": "1G1YY22U965104928", "gps": {"latitude": 37.77595, "longitude": -122.41856, "heading": 42.1, "altitude_m": 16.4}, "dynamics": {"speed_kph": 105.41, "speed_mph": 65.5, "brake_pedal_pct": 0.0, "throttle_pct": 28.0, "steering_angle_deg": 0.5, "seatbelt_driver_buckled": true, "gear_position": "D"}, "dtc_faults": [], "event_tag": "NORMAL_CRUISE"}, {"timestamp": "2026-11-14T23:45:08Z", "vin": "1G1YY22U965104928", "gps": {"latitude": 37.7761, "longitude": -122.41843999999999, "heading": 42.1, "altitude_m": 16.4}, "dynamics": {"speed_kph": 106.22, "speed_mph": 66.0, "brake_pedal_pct": 0.0, "throttle_pct": 28.0, "steering_angle_deg": 0.5, "seatbelt_driver_buckled": true, "gear_position": "D"}, "dtc_faults": [], "event_tag": "NORMAL_CRUISE"}, {"timestamp": "2026-11-14T23:45:09Z", "vin": "1G1YY22U965104928", "gps": {"latitude": 37.776250000000005, "longitude": -122.41832, "heading": 42.1, "altitude_m": 16.4}, "dynamics": {"speed_kph": 104.61, "speed_mph": 65.0, "brake_pedal_pct": 0.0, "throttle_pct": 28.0, "steering_angle_deg": 0.5, "seatbelt_driver_buckled": true, "gear_position": "D"}, "dtc_faults": [], "event_tag": "NORMAL_CRUISE"}, {"timestamp": "2026-11-14T23:45:10Z", "vin": "1G1YY22U965104928", "gps": {"latitude": 37.7764, "longitude": -122.4182, "heading": 42.1, "altitude_m": 16.4}, "dynamics": {"speed_kph": 105.41, "speed_mph": 65.5, "brake_pedal_pct": 0.0, "throttle_pct": 28.0, "steering_angle_deg": 0.5, "seatbelt_driver_buckled": true, "gear_position": "D"}, "dtc_faults": [], "event_tag": "NORMAL_CRUISE"}, {"timestamp": "2026-11-14T23:45:11Z", "vin": "1G1YY22U965104928", "gps": {"latitude": 37.77655, "longitude": -122.41807999999999, "heading": 42.1, "altitude_m": 16.4}, "dynamics": {"speed_kph": 106.22, "speed_mph": 66.0, "brake_pedal_pct": 0.0, "throttle_pct": 28.0, "steering_angle_deg": 0.5, "seatbelt_driver_buckled": true, "gear_position": "D"}, "dtc_faults": [], "event_tag": "NORMAL_CRUISE"}, {"timestamp": "2026-11-14T23:45:12Z", "vin": "1G1YY22U965104928", "gps": {"latitude": 37.776700000000005, "longitude": -122.41796, "heading": 42.1, "altitude_m": 16.4}, "dynamics": {"speed_kph": 104.61, "speed_mph": 65.0, "brake_pedal_pct": 0.0, "throttle_pct": 28.0, "steering_angle_deg": 0.5, "seatbelt_driver_buckled": true, "gear_position": "D"}, "dtc_faults": [], "event_tag": "NORMAL_CRUISE"}, {"timestamp": "2026-11-14T23:45:13Z", "vin": "1G1YY22U965104928", "gps": {"latitude": 37.77685, "longitude": -122.41784, "heading": 42.1, "altitude_m": 16.4}, "dynamics": {"speed_kph": 105.41, "speed_mph": 65.5, "brake_pedal_pct": 0.0, "throttle_pct": 28.0, "steering_angle_deg": 0.5, "seatbelt_driver_buckled": true, "gear_position": "D"}, "dtc_faults": [], "event_tag": "NORMAL_CRUISE"}, {"timestamp": "2026-11-14T23:45:14Z", "vin": "1G1YY22U965104928", "gps": {"latitude": 37.777, "longitude": -122.41772, "heading": 42.1, "altitude_m": 16.4}, "dynamics": {"speed_kph": 106.22, "speed_mph": 66.0, "brake_pedal_pct": 0.0, "throttle_pct": 28.0, "steering_angle_deg": 0.5, "seatbelt_driver_buckled": true, "gear_position": "D"}, "dtc_faults": [], "event_tag": "NORMAL_CRUISE"}, {"timestamp": "2026-11-14T23:45:15Z", "vin": "1G1YY22U965104928", "gps": {"latitude": 37.77715, "longitude": -122.4176, "heading": 42.1, "altitude_m": 16.4}, "dynamics": {"speed_kph": 104.61, "speed_mph": 65.0, "brake_pedal_pct": 0.0, "throttle_pct": 28.0, "steering_angle_deg": 0.5, "seatbelt_driver_buckled": true, "gear_position": "D"}, "dtc_faults": [], "event_tag": "NORMAL_CRUISE"}, {"timestamp": "2026-11-14T23:45:16Z", "vin": "1G1YY22U965104928", "gps": {"latitude": 37.777300000000004, "longitude": -122.41748, "heading": 42.1, "altitude_m": 16.4}, "dynamics": {"speed_kph": 105.41, "speed_mph": 65.5, "brake_pedal_pct": 0.0, "throttle_pct": 28.0, "steering_angle_deg": 0.5, "seatbelt_driver_buckled": true, "gear_position": "D"}, "dtc_faults": [], "event_tag": "NORMAL_CRUISE"}, {"timestamp": "2026-11-14T23:45:17Z", "vin": "1G1YY22U965104928", "gps": {"latitude": 37.77745, "longitude": -122.41736, "heading": 42.1, "altitude_m": 16.4}, "dynamics": {"speed_kph": 106.22, "speed_mph": 66.0, "brake_pedal_pct": 0.0, "throttle_pct": 28.0, "steering_angle_deg": 0.5, "seatbelt_driver_buckled": true, "gear_position": "D"}, "dtc_faults": [], "event_tag": "NORMAL_CRUISE"}, {"timestamp": "2026-11-14T23:45:18Z", "vin": "1G1YY22U965104928", "gps": {"latitude": 37.7776, "longitude": -122.41723999999999, "heading": 42.1, "altitude_m": 16.4}, "dynamics": {"speed_kph": 104.61, "speed_mph": 65.0, "brake_pedal_pct": 0.0, "throttle_pct": 28.0, "steering_angle_deg": 0.5, "seatbelt_driver_buckled": true, "gear_position": "D"}, "dtc_faults": [], "event_tag": "NORMAL_CRUISE"}, {"timestamp": "2026-11-14T23:45:19Z", "vin": "1G1YY22U965104928", "gps": {"latitude": 37.777750000000005, "longitude": -122.41712, "heading": 42.1, "altitude_m": 16.4}, "dynamics": {"speed_kph": 105.41, "speed_mph": 65.5, "brake_pedal_pct": 0.0, "throttle_pct": 28.0, "steering_angle_deg": 0.5, "seatbelt_driver_buckled": true, "gear_position": "D"}, "dtc_faults": [], "event_tag": "NORMAL_CRUISE"}, {"timestamp": "2026-11-14T23:45:20Z", "vin": "1G1YY22U965104928", "gps": {"latitude": 37.7779, "longitude": -122.417, "heading": 42.1, "altitude_m": 16.4}, "dynamics": {"speed_kph": 106.22, "speed_mph": 66.0, "brake_pedal_pct": 0.0, "throttle_pct": 28.0, "steering_angle_deg": 0.5, "seatbelt_driver_buckled": true, "gear_position": "D"}, "dtc_faults": [], "event_tag": "NORMAL_CRUISE"}, {"timestamp": "2026-11-14T23:45:21Z", "vin": "1G1YY22U965104928", "gps": {"latitude": 37.77805, "longitude": -122.41687999999999, "heading": 42.1, "altitude_m": 16.4}, "dynamics": {"speed_kph": 104.61, "speed_mph": 65.0, "brake_pedal_pct": 0.0, "throttle_pct": 28.0, "steering_angle_deg": 0.5, "seatbelt_driver_buckled": true, "gear_position": "D"}, "dtc_faults": [], "event_tag": "NORMAL_CRUISE"}, {"timestamp": "2026-11-14T23:45:22Z", "vin": "1G1YY22U965104928", "gps": {"latitude": 37.778200000000005, "longitude": -122.41676, "heading": 42.1, "altitude_m": 16.4}, "dynamics": {"speed_kph": 105.41, "speed_mph": 65.5, "brake_pedal_pct": 0.0, "throttle_pct": 28.0, "steering_angle_deg": 0.5, "seatbelt_driver_buckled": true, "gear_position": "D"}, "dtc_faults": [], "event_tag": "NORMAL_CRUISE"}, {"timestamp": "2026-11-14T23:45:23Z", "vin": "1G1YY22U965104928", "gps": {"latitude": 37.77835, "longitude": -122.41664, "heading": 42.1, "altitude_m": 16.4}, "dynamics": {"speed_kph": 106.22, "speed_mph": 66.0, "brake_pedal_pct": 0.0, "throttle_pct": 28.0, "steering_angle_deg": 0.5, "seatbelt_driver_buckled": true, "gear_position": "D"}, "dtc_faults": [], "event_tag": "NORMAL_CRUISE"}, {"timestamp": "2026-11-14T23:45:24Z", "vin": "1G1YY22U965104928", "gps": {"latitude": 37.7785, "longitude": -122.41651999999999, "heading": 42.1, "altitude_m": 16.4}, "dynamics": {"speed_kph": 104.61, "speed_mph": 65.0, "brake_pedal_pct": 0.0, "throttle_pct": 28.0, "steering_angle_deg": 0.5, "seatbelt_driver_buckled": true, "gear_position": "D"}, "dtc_faults": [], "event_tag": "NORMAL_CRUISE"}, {"timestamp": "2026-11-14T23:45:25Z", "vin": "1G1YY22U965104928", "gps": {"latitude": 37.77865, "longitude": -122.4164, "heading": 42.1, "altitude_m": 16.4}, "dynamics": {"speed_kph": 110.56, "speed_mph": 68.7, "brake_pedal_pct": 0.0, "throttle_pct": 34.0, "steering_angle_deg": -4.2, "seatbelt_driver_buckled": true, "gear_position": "D"}, "dtc_faults": [], "event_tag": "LANE_DEPARTURE_WARNING"}, {"timestamp": "2026-11-14T23:45:26Z", "vin": "1G1YY22U965104928", "gps": {"latitude": 37.778800000000004, "longitude": -122.41628, "heading": 42.1, "altitude_m": 16.4}, "dynamics": {"speed_kph": 108.63, "speed_mph": 67.5, "brake_pedal_pct": 0.0, "throttle_pct": 34.0, "steering_angle_deg": -4.2, "seatbelt_driver_buckled": true, "gear_position": "D"}, "dtc_faults": [], "event_tag": "LANE_DEPARTURE_WARNING"}, {"timestamp": "2026-11-14T23:45:27Z", "vin": "1G1YY22U965104928", "gps": {"latitude": 37.77895, "longitude": -122.41615999999999, "heading": 42.1, "altitude_m": 16.4}, "dynamics": {"speed_kph": 110.56, "speed_mph": 68.7, "brake_pedal_pct": 0.0, "throttle_pct": 34.0, "steering_angle_deg": -4.2, "seatbelt_driver_buckled": true, "gear_position": "D"}, "dtc_faults": [], "event_tag": "LANE_DEPARTURE_WARNING"}, {"timestamp": "2026-11-14T23:45:28Z", "vin": "1G1YY22U965104928", "gps": {"latitude": 37.7791, "longitude": -122.41604, "heading": 42.1, "altitude_m": 16.4}, "dynamics": {"speed_kph": 108.63, "speed_mph": 67.5, "brake_pedal_pct": 0.0, "throttle_pct": 34.0, "steering_angle_deg": -4.2, "seatbelt_driver_buckled": true, "gear_position": "D"}, "dtc_faults": [], "event_tag": "LANE_DEPARTURE_WARNING"}, {"timestamp": "2026-11-14T23:45:29Z", "vin": "1G1YY22U965104928", "gps": {"latitude": 37.779250000000005, "longitude": -122.41592, "heading": 42.1, "altitude_m": 16.4}, "dynamics": {"speed_kph": 110.56, "speed_mph": 68.7, "brake_pedal_pct": 0.0, "throttle_pct": 34.0, "steering_angle_deg": -4.2, "seatbelt_driver_buckled": true, "gear_position": "D"}, "dtc_faults": [], "event_tag": "LANE_DEPARTURE_WARNING"}, {"timestamp": "2026-11-14T23:45:30Z", "vin": "1G1YY22U965104928", "gps": {"latitude": 37.7794, "longitude": -122.41579999999999, "heading": 42.1, "altitude_m": 16.4}, "dynamics": {"speed_kph": 108.63, "speed_mph": 67.5, "brake_pedal_pct": 0.0, "throttle_pct": 34.0, "steering_angle_deg": -4.2, "seatbelt_driver_buckled": true, "gear_position": "D"}, "dtc_faults": [], "event_tag": "LANE_DEPARTURE_WARNING"}, {"timestamp": "2026-11-14T23:45:31Z", "vin": "1G1YY22U965104928", "gps": {"latitude": 37.77955, "longitude": -122.41568, "heading": 42.1, "altitude_m": 16.4}, "dynamics": {"speed_kph": 110.56, "speed_mph": 68.7, "brake_pedal_pct": 0.0, "throttle_pct": 34.0, "steering_angle_deg": -4.2, "seatbelt_driver_buckled": true, "gear_position": "D"}, "dtc_faults": [], "event_tag": "LANE_DEPARTURE_WARNING"}, {"timestamp": "2026-11-14T23:45:32Z", "vin": "1G1YY22U965104928", "gps": {"latitude": 37.779700000000005, "longitude": -122.41556, "heading": 42.1, "altitude_m": 16.4}, "dynamics": {"speed_kph": 93.34, "speed_mph": 58.0, "brake_pedal_pct": 85.0, "throttle_pct": 0.0, "steering_angle_deg": 18.5, "seatbelt_driver_buckled": true, "gear_position": "D"}, "dtc_faults": [], "event_tag": "EMERGENCY_BRAKE_ACTUATION"}, {"timestamp": "2026-11-14T23:45:33Z", "vin": "1G1YY22U965104928", "gps": {"latitude": 37.77985, "longitude": -122.41543999999999, "heading": 42.1, "altitude_m": 16.4}, "dynamics": {"speed_kph": 74.03, "speed_mph": 46.0, "brake_pedal_pct": 85.0, "throttle_pct": 0.0, "steering_angle_deg": 18.5, "seatbelt_driver_buckled": true, "gear_position": "D"}, "dtc_faults": [], "event_tag": "EMERGENCY_BRAKE_ACTUATION"}, {"timestamp": "2026-11-14T23:45:34Z", "vin": "1G1YY22U965104928", "gps": {"latitude": 37.78, "longitude": -122.41532, "heading": 42.1, "altitude_m": 16.4}, "dynamics": {"speed_kph": 54.72, "speed_mph": 34.0, "brake_pedal_pct": 85.0, "throttle_pct": 0.0, "steering_angle_deg": 18.5, "seatbelt_driver_buckled": true, "gear_position": "D"}, "dtc_faults": [], "event_tag": "EMERGENCY_BRAKE_ACTUATION"}, {"timestamp": "2026-11-14T23:45:35Z", "vin": "1G1YY22U965104928", "gps": {"latitude": 37.78015, "longitude": -122.4152, "heading": 42.1, "altitude_m": 16.4}, "dynamics": {"speed_kph": 28.97, "speed_mph": 18.0, "brake_pedal_pct": 100.0, "throttle_pct": 0.0, "steering_angle_deg": 2.0, "seatbelt_driver_buckled": true, "gear_position": "D"}, "dtc_faults": ["B0001-13"], "event_tag": "AIRBAG_DEPLOYMENT_PRIMARY_IMPACT"}, {"timestamp": "2026-11-14T23:45:36Z", "vin": "1G1YY22U965104928", "gps": {"latitude": 37.780300000000004, "longitude": -122.41507999999999, "heading": 42.1, "altitude_m": 16.4}, "dynamics": {"speed_kph": 0.0, "speed_mph": 0.0, "brake_pedal_pct": 0.0, "throttle_pct": 0.0, "steering_angle_deg": 0.0, "seatbelt_driver_buckled": true, "gear_position": "P"}, "dtc_faults": ["B0001-13"], "event_tag": "VEHICLE_DISABLED_POST_IMPACT"}, {"timestamp": "2026-11-14T23:45:37Z", "vin": "1G1YY22U965104928", "gps": {"latitude": 37.78045, "longitude": -122.41496, "heading": 42.1, "altitude_m": 16.4}, "dynamics": {"speed_kph": 0.0, "speed_mph": 0.0, "brake_pedal_pct": 0.0, "throttle_pct": 0.0, "steering_angle_deg": 0.0, "seatbelt_driver_buckled": true, "gear_position": "P"}, "dtc_faults": ["B0001-13"], "event_tag": "VEHICLE_DISABLED_POST_IMPACT"}, {"timestamp": "2026-11-14T23:45:38Z", "vin": "1G1YY22U965104928", "gps": {"latitude": 37.7806, "longitude": -122.41484, "heading": 42.1, "altitude_m": 16.4}, "dynamics": {"speed_kph": 0.0, "speed_mph": 0.0, "brake_pedal_pct": 0.0, "throttle_pct": 0.0, "steering_angle_deg": 0.0, "seatbelt_driver_buckled": true, "gear_position": "P"}, "dtc_faults": ["B0001-13"], "event_tag": "VEHICLE_DISABLED_POST_IMPACT"}, {"timestamp": "2026-11-14T23:45:39Z", "vin": "1G1YY22U965104928", "gps": {"latitude": 37.780750000000005, "longitude": -122.41472, "heading": 42.1, "altitude_m": 16.4}, "dynamics": {"speed_kph": 0.0, "speed_mph": 0.0, "brake_pedal_pct": 0.0, "throttle_pct": 0.0, "steering_angle_deg": 0.0, "seatbelt_driver_buckled": true, "gear_position": "P"}, "dtc_faults": ["B0001-13"], "event_tag": "VEHICLE_DISABLED_POST_IMPACT"}, {"timestamp": "2026-11-14T23:45:40Z", "vin": "1G1YY22U965104928", "gps": {"latitude": 37.7809, "longitude": -122.4146, "heading": 42.1, "altitude_m": 16.4}, "dynamics": {"speed_kph": 0.0, "speed_mph": 0.0, "brake_pedal_pct": 0.0, "throttle_pct": 0.0, "steering_angle_deg": 0.0, "seatbelt_driver_buckled": true, "gear_position": "P"}, "dtc_faults": ["B0001-13"], "event_tag": "VEHICLE_DISABLED_POST_IMPACT"}, {"timestamp": "2026-11-14T23:45:41Z", "vin": "1G1YY22U965104928", "gps": {"latitude": 37.78105, "longitude": -122.41448, "heading": 42.1, "altitude_m": 16.4}, "dynamics": {"speed_kph": 0.0, "speed_mph": 0.0, "brake_pedal_pct": 0.0, "throttle_pct": 0.0, "steering_angle_deg": 0.0, "seatbelt_driver_buckled": true, "gear_position": "P"}, "dtc_faults": ["B0001-13"], "event_tag": "VEHICLE_DISABLED_POST_IMPACT"}, {"timestamp": "2026-11-14T23:45:42Z", "vin": "1G1YY22U965104928", "gps": {"latitude": 37.781200000000005, "longitude": -122.41436, "heading": 42.1, "altitude_m": 16.4}, "dynamics": {"speed_kph": 0.0, "speed_mph": 0.0, "brake_pedal_pct": 0.0, "throttle_pct": 0.0, "steering_angle_deg": 0.0, "seatbelt_driver_buckled": true, "gear_position": "P"}, "dtc_faults": ["B0001-13"], "event_tag": "VEHICLE_DISABLED_POST_IMPACT"}, {"timestamp": "2026-11-14T23:45:43Z", "vin": "1G1YY22U965104928", "gps": {"latitude": 37.78135, "longitude": -122.41423999999999, "heading": 42.1, "altitude_m": 16.4}, "dynamics": {"speed_kph": 0.0, "speed_mph": 0.0, "brake_pedal_pct": 0.0, "throttle_pct": 0.0, "steering_angle_deg": 0.0, "seatbelt_driver_buckled": true, "gear_position": "P"}, "dtc_faults": ["B0001-13"], "event_tag": "VEHICLE_DISABLED_POST_IMPACT"}, {"timestamp": "2026-11-14T23:45:44Z", "vin": "1G1YY22U965104928", "gps": {"latitude": 37.7815, "longitude": -122.41412, "heading": 42.1, "altitude_m": 16.4}, "dynamics": {"speed_kph": 0.0, "speed_mph": 0.0, "brake_pedal_pct": 0.0, "throttle_pct": 0.0, "steering_angle_deg": 0.0, "seatbelt_driver_buckled": true, "gear_position": "P"}, "dtc_faults": ["B0001-13"], "event_tag": "VEHICLE_DISABLED_POST_IMPACT"}, {"timestamp": "2026-11-14T23:45:45Z", "vin": "1G1YY22U965104928", "gps": {"latitude": 37.78165, "longitude": -122.414, "heading": 42.1, "altitude_m": 16.4}, "dynamics": {"speed_kph": 0.0, "speed_mph": 0.0, "brake_pedal_pct": 0.0, "throttle_pct": 0.0, "steering_angle_deg": 0.0, "seatbelt_driver_buckled": true, "gear_position": "P"}, "dtc_faults": ["B0001-13"], "event_tag": "VEHICLE_DISABLED_POST_IMPACT"}, {"timestamp": "2026-11-14T23:45:46Z", "vin": "1G1YY22U965104928", "gps": {"latitude": 37.781800000000004, "longitude": -122.41387999999999, "heading": 42.1, "altitude_m": 16.4}, "dynamics": {"speed_kph": 0.0, "speed_mph": 0.0, "brake_pedal_pct": 0.0, "throttle_pct": 0.0, "steering_angle_deg": 0.0, "seatbelt_driver_buckled": true, "gear_position": "P"}, "dtc_faults": ["B0001-13"], "event_tag": "VEHICLE_DISABLED_POST_IMPACT"}, {"timestamp": "2026-11-14T23:45:47Z", "vin": "1G1YY22U965104928", "gps": {"latitude": 37.78195, "longitude": -122.41376, "heading": 42.1, "altitude_m": 16.4}, "dynamics": {"speed_kph": 0.0, "speed_mph": 0.0, "brake_pedal_pct": 0.0, "throttle_pct": 0.0, "steering_angle_deg": 0.0, "seatbelt_driver_buckled": true, "gear_position": "P"}, "dtc_faults": ["B0001-13"], "event_tag": "VEHICLE_DISABLED_POST_IMPACT"}, {"timestamp": "2026-11-14T23:45:48Z", "vin": "1G1YY22U965104928", "gps": {"latitude": 37.7821, "longitude": -122.41364, "heading": 42.1, "altitude_m": 16.4}, "dynamics": {"speed_kph": 0.0, "speed_mph": 0.0, "brake_pedal_pct": 0.0, "throttle_pct": 0.0, "steering_angle_deg": 0.0, "seatbelt_driver_buckled": true, "gear_position": "P"}, "dtc_faults": ["B0001-13"], "event_tag": "VEHICLE_DISABLED_POST_IMPACT"}, {"timestamp": "2026-11-14T23:45:49Z", "vin": "1G1YY22U965104928", "gps": {"latitude": 37.782250000000005, "longitude": -122.41351999999999, "heading": 42.1, "altitude_m": 16.4}, "dynamics": {"speed_kph": 0.0, "speed_mph": 0.0, "brake_pedal_pct": 0.0, "throttle_pct": 0.0, "steering_angle_deg": 0.0, "seatbelt_driver_buckled": true, "gear_position": "P"}, "dtc_faults": ["B0001-13"], "event_tag": "VEHICLE_DISABLED_POST_IMPACT"}, {"timestamp": "2026-11-14T23:45:50Z", "vin": "1G1YY22U965104928", "gps": {"latitude": 37.7824, "longitude": -122.4134, "heading": 42.1, "altitude_m": 16.4}, "dynamics": {"speed_kph": 0.0, "speed_mph": 0.0, "brake_pedal_pct": 0.0, "throttle_pct": 0.0, "steering_angle_deg": 0.0, "seatbelt_driver_buckled": true, "gear_position": "P"}, "dtc_faults": ["B0001-13"], "event_tag": "VEHICLE_DISABLED_POST_IMPACT"}, {"timestamp": "2026-11-14T23:45:51Z", "vin": "1G1YY22U965104928", "gps": {"latitude": 37.78255, "longitude": -122.41328, "heading": 42.1, "altitude_m": 16.4}, "dynamics": {"speed_kph": 0.0, "speed_mph": 0.0, "brake_pedal_pct": 0.0, "throttle_pct": 0.0, "steering_angle_deg": 0.0, "seatbelt_driver_buckled": true, "gear_position": "P"}, "dtc_faults": ["B0001-13"], "event_tag": "VEHICLE_DISABLED_POST_IMPACT"}, {"timestamp": "2026-11-14T23:45:52Z", "vin": "1G1YY22U965104928", "gps": {"latitude": 37.782700000000006, "longitude": -122.41315999999999, "heading": 42.1, "altitude_m": 16.4}, "dynamics": {"speed_kph": 0.0, "speed_mph": 0.0, "brake_pedal_pct": 0.0, "throttle_pct": 0.0, "steering_angle_deg": 0.0, "seatbelt_driver_buckled": true, "gear_position": "P"}, "dtc_faults": ["B0001-13"], "event_tag": "VEHICLE_DISABLED_POST_IMPACT"}, {"timestamp": "2026-11-14T23:45:53Z", "vin": "1G1YY22U965104928", "gps": {"latitude": 37.78285, "longitude": -122.41304, "heading": 42.1, "altitude_m": 16.4}, "dynamics": {"speed_kph": 0.0, "speed_mph": 0.0, "brake_pedal_pct": 0.0, "throttle_pct": 0.0, "steering_angle_deg": 0.0, "seatbelt_driver_buckled": true, "gear_position": "P"}, "dtc_faults": ["B0001-13"], "event_tag": "VEHICLE_DISABLED_POST_IMPACT"}, {"timestamp": "2026-11-14T23:45:54Z", "vin": "1G1YY22U965104928", "gps": {"latitude": 37.783, "longitude": -122.41292, "heading": 42.1, "altitude_m": 16.4}, "dynamics": {"speed_kph": 0.0, "speed_mph": 0.0, "brake_pedal_pct": 0.0, "throttle_pct": 0.0, "steering_angle_deg": 0.0, "seatbelt_driver_buckled": true, "gear_position": "P"}, "dtc_faults": ["B0001-13"], "event_tag": "VEHICLE_DISABLED_POST_IMPACT"}, {"timestamp": "2026-11-14T23:45:55Z", "vin": "1G1YY22U965104928", "gps": {"latitude": 37.78315, "longitude": -122.41279999999999, "heading": 42.1, "altitude_m": 16.4}, "dynamics": {"speed_kph": 0.0, "speed_mph": 0.0, "brake_pedal_pct": 0.0, "throttle_pct": 0.0, "steering_angle_deg": 0.0, "seatbelt_driver_buckled": true, "gear_position": "P"}, "dtc_faults": ["B0001-13"], "event_tag": "VEHICLE_DISABLED_POST_IMPACT"}, {"timestamp": "2026-11-14T23:45:56Z", "vin": "1G1YY22U965104928", "gps": {"latitude": 37.783300000000004, "longitude": -122.41268, "heading": 42.1, "altitude_m": 16.4}, "dynamics": {"speed_kph": 0.0, "speed_mph": 0.0, "brake_pedal_pct": 0.0, "throttle_pct": 0.0, "steering_angle_deg": 0.0, "seatbelt_driver_buckled": true, "gear_position": "P"}, "dtc_faults": ["B0001-13"], "event_tag": "VEHICLE_DISABLED_POST_IMPACT"}, {"timestamp": "2026-11-14T23:45:57Z", "vin": "1G1YY22U965104928", "gps": {"latitude": 37.78345, "longitude": -122.41256, "heading": 42.1, "altitude_m": 16.4}, "dynamics": {"speed_kph": 0.0, "speed_mph": 0.0, "brake_pedal_pct": 0.0, "throttle_pct": 0.0, "steering_angle_deg": 0.0, "seatbelt_driver_buckled": true, "gear_position": "P"}, "dtc_faults": ["B0001-13"], "event_tag": "VEHICLE_DISABLED_POST_IMPACT"}, {"timestamp": "2026-11-14T23:45:58Z", "vin": "1G1YY22U965104928", "gps": {"latitude": 37.7836, "longitude": -122.41243999999999, "heading": 42.1, "altitude_m": 16.4}, "dynamics": {"speed_kph": 0.0, "speed_mph": 0.0, "brake_pedal_pct": 0.0, "throttle_pct": 0.0, "steering_angle_deg": 0.0, "seatbelt_driver_buckled": true, "gear_position": "P"}, "dtc_faults": ["B0001-13"], "event_tag": "VEHICLE_DISABLED_POST_IMPACT"}, {"timestamp": "2026-11-14T23:45:59Z", "vin": "1G1YY22U965104928", "gps": {"latitude": 37.783750000000005, "longitude": -122.41232, "heading": 42.1, "altitude_m": 16.4}, "dynamics": {"speed_kph": 0.0, "speed_mph": 0.0, "brake_pedal_pct": 0.0, "throttle_pct": 0.0, "steering_angle_deg": 0.0, "seatbelt_driver_buckled": true, "gear_position": "P"}, "dtc_faults": ["B0001-13"], "event_tag": "VEHICLE_DISABLED_POST_IMPACT"}];
+        const causalEvents = [{"timestamp_utc": "2026-11-14T23:45:20+00:00", "epoch": 1794699920.0, "source": "CLOUD_TELEMATICS_API", "category": "VEHICLE_DYNAMICS", "summary": "Speed: 66.0 mph, Brake: 0.0%, Steering: 0.5\u00b0", "details": {"timestamp": "2026-11-14T23:45:20Z", "vin": "1G1YY22U965104928", "gps": {"latitude": 37.7779, "longitude": -122.417, "heading": 42.1, "altitude_m": 16.4}, "dynamics": {"speed_kph": 106.22, "speed_mph": 66.0, "brake_pedal_pct": 0.0, "throttle_pct": 28.0, "steering_angle_deg": 0.5, "seatbelt_driver_buckled": true, "gear_position": "D"}, "dtc_faults": [], "event_tag": "NORMAL_CRUISE"}, "event_tag": "NORMAL_CRUISE"}, {"timestamp_utc": "2026-11-14T23:45:21+00:00", "epoch": 1794699921.0, "source": "CLOUD_TELEMATICS_API", "category": "VEHICLE_DYNAMICS", "summary": "Speed: 65.0 mph, Brake: 0.0%, Steering: 0.5\u00b0", "details": {"timestamp": "2026-11-14T23:45:21Z", "vin": "1G1YY22U965104928", "gps": {"latitude": 37.77805, "longitude": -122.41687999999999, "heading": 42.1, "altitude_m": 16.4}, "dynamics": {"speed_kph": 104.61, "speed_mph": 65.0, "brake_pedal_pct": 0.0, "throttle_pct": 28.0, "steering_angle_deg": 0.5, "seatbelt_driver_buckled": true, "gear_position": "D"}, "dtc_faults": [], "event_tag": "NORMAL_CRUISE"}, "event_tag": "NORMAL_CRUISE"}, {"timestamp_utc": "2026-11-14T23:45:22+00:00", "epoch": 1794699922.0, "source": "CLOUD_TELEMATICS_API", "category": "VEHICLE_DYNAMICS", "summary": "Speed: 65.5 mph, Brake: 0.0%, Steering: 0.5\u00b0", "details": {"timestamp": "2026-11-14T23:45:22Z", "vin": "1G1YY22U965104928", "gps": {"latitude": 37.778200000000005, "longitude": -122.41676, "heading": 42.1, "altitude_m": 16.4}, "dynamics": {"speed_kph": 105.41, "speed_mph": 65.5, "brake_pedal_pct": 0.0, "throttle_pct": 28.0, "steering_angle_deg": 0.5, "seatbelt_driver_buckled": true, "gear_position": "D"}, "dtc_faults": [], "event_tag": "NORMAL_CRUISE"}, "event_tag": "NORMAL_CRUISE"}, {"timestamp_utc": "2026-11-14T23:45:23+00:00", "epoch": 1794699923.0, "source": "CLOUD_TELEMATICS_API", "category": "VEHICLE_DYNAMICS", "summary": "Speed: 66.0 mph, Brake: 0.0%, Steering: 0.5\u00b0", "details": {"timestamp": "2026-11-14T23:45:23Z", "vin": "1G1YY22U965104928", "gps": {"latitude": 37.77835, "longitude": -122.41664, "heading": 42.1, "altitude_m": 16.4}, "dynamics": {"speed_kph": 106.22, "speed_mph": 66.0, "brake_pedal_pct": 0.0, "throttle_pct": 28.0, "steering_angle_deg": 0.5, "seatbelt_driver_buckled": true, "gear_position": "D"}, "dtc_faults": [], "event_tag": "NORMAL_CRUISE"}, "event_tag": "NORMAL_CRUISE"}, {"timestamp_utc": "2026-11-14T23:45:24+00:00", "epoch": 1794699924.0, "source": "CLOUD_TELEMATICS_API", "category": "VEHICLE_DYNAMICS", "summary": "Speed: 65.0 mph, Brake: 0.0%, Steering: 0.5\u00b0", "details": {"timestamp": "2026-11-14T23:45:24Z", "vin": "1G1YY22U965104928", "gps": {"latitude": 37.7785, "longitude": -122.41651999999999, "heading": 42.1, "altitude_m": 16.4}, "dynamics": {"speed_kph": 104.61, "speed_mph": 65.0, "brake_pedal_pct": 0.0, "throttle_pct": 28.0, "steering_angle_deg": 0.5, "seatbelt_driver_buckled": true, "gear_position": "D"}, "dtc_faults": [], "event_tag": "NORMAL_CRUISE"}, "event_tag": "NORMAL_CRUISE"}, {"timestamp_utc": "2026-11-14T23:45:24+00:00", "epoch": 1794699924.0, "source": "IVI_SMS_SYNC", "category": "COMMUNICATION_TEXT", "summary": "[INCOMING] Sarah Miller (+1-415-555-0199): 'Urgent: Check your email right now, the deal contract arrived!'", "details": {"sender": "Sarah Miller", "phone": "+1-415-555-0199", "direction": "INCOMING", "body": "Urgent: Check your email right now, the deal contract arrived!", "nlp_analysis": {"distraction_level": "CRITICAL_DISTRACTION", "distraction_score": 3, "classified_tags": ["HIGH_COGNITIVE_VISUAL_DISTRACTION"], "analyzed_text": "Urgent: Check your email right now, the deal contract arrived!"}, "extracted_entities": {}}, "event_tag": "SMS_INCOMING"}, {"timestamp_utc": "2026-11-14T23:45:25+00:00", "epoch": 1794699925.0, "source": "CLOUD_TELEMATICS_API", "category": "VEHICLE_DYNAMICS", "summary": "Speed: 68.7 mph, Brake: 0.0%, Steering: -4.2\u00b0", "details": {"timestamp": "2026-11-14T23:45:25Z", "vin": "1G1YY22U965104928", "gps": {"latitude": 37.77865, "longitude": -122.4164, "heading": 42.1, "altitude_m": 16.4}, "dynamics": {"speed_kph": 110.56, "speed_mph": 68.7, "brake_pedal_pct": 0.0, "throttle_pct": 34.0, "steering_angle_deg": -4.2, "seatbelt_driver_buckled": true, "gear_position": "D"}, "dtc_faults": [], "event_tag": "LANE_DEPARTURE_WARNING"}, "event_tag": "LANE_DEPARTURE_WARNING"}, {"timestamp_utc": "2026-11-14T23:45:26+00:00", "epoch": 1794699926.0, "source": "CLOUD_TELEMATICS_API", "category": "VEHICLE_DYNAMICS", "summary": "Speed: 67.5 mph, Brake: 0.0%, Steering: -4.2\u00b0", "details": {"timestamp": "2026-11-14T23:45:26Z", "vin": "1G1YY22U965104928", "gps": {"latitude": 37.778800000000004, "longitude": -122.41628, "heading": 42.1, "altitude_m": 16.4}, "dynamics": {"speed_kph": 108.63, "speed_mph": 67.5, "brake_pedal_pct": 0.0, "throttle_pct": 34.0, "steering_angle_deg": -4.2, "seatbelt_driver_buckled": true, "gear_position": "D"}, "dtc_faults": [], "event_tag": "LANE_DEPARTURE_WARNING"}, "event_tag": "LANE_DEPARTURE_WARNING"}, {"timestamp_utc": "2026-11-14T23:45:27+00:00", "epoch": 1794699927.0, "source": "CLOUD_TELEMATICS_API", "category": "VEHICLE_DYNAMICS", "summary": "Speed: 68.7 mph, Brake: 0.0%, Steering: -4.2\u00b0", "details": {"timestamp": "2026-11-14T23:45:27Z", "vin": "1G1YY22U965104928", "gps": {"latitude": 37.77895, "longitude": -122.41615999999999, "heading": 42.1, "altitude_m": 16.4}, "dynamics": {"speed_kph": 110.56, "speed_mph": 68.7, "brake_pedal_pct": 0.0, "throttle_pct": 34.0, "steering_angle_deg": -4.2, "seatbelt_driver_buckled": true, "gear_position": "D"}, "dtc_faults": [], "event_tag": "LANE_DEPARTURE_WARNING"}, "event_tag": "LANE_DEPARTURE_WARNING"}, {"timestamp_utc": "2026-11-14T23:45:27+00:00", "epoch": 1794699927.0, "source": "IVI_VOICE_ASSISTANT", "category": "VOICE_INTERACTION", "summary": "Voice Query: 'Read the last incoming message from Sarah' [Intent: SMS_READ_REQUEST]", "details": {"transcript": "Read the last incoming message from Sarah", "intent": "SMS_READ_REQUEST", "nlp_analysis": {"distraction_level": "CRITICAL_DISTRACTION", "distraction_score": 3, "classified_tags": ["HIGH_COGNITIVE_VISUAL_DISTRACTION"], "analyzed_text": "Read the last incoming message from Sarah"}, "extracted_entities": {}}, "event_tag": "VOICE_SMS_READ_REQUEST"}, {"timestamp_utc": "2026-11-14T23:45:28+00:00", "epoch": 1794699928.0, "source": "CLOUD_TELEMATICS_API", "category": "VEHICLE_DYNAMICS", "summary": "Speed: 67.5 mph, Brake: 0.0%, Steering: -4.2\u00b0", "details": {"timestamp": "2026-11-14T23:45:28Z", "vin": "1G1YY22U965104928", "gps": {"latitude": 37.7791, "longitude": -122.41604, "heading": 42.1, "altitude_m": 16.4}, "dynamics": {"speed_kph": 108.63, "speed_mph": 67.5, "brake_pedal_pct": 0.0, "throttle_pct": 34.0, "steering_angle_deg": -4.2, "seatbelt_driver_buckled": true, "gear_position": "D"}, "dtc_faults": [], "event_tag": "LANE_DEPARTURE_WARNING"}, "event_tag": "LANE_DEPARTURE_WARNING"}, {"timestamp_utc": "2026-11-14T23:45:29+00:00", "epoch": 1794699929.0, "source": "CLOUD_TELEMATICS_API", "category": "VEHICLE_DYNAMICS", "summary": "Speed: 68.7 mph, Brake: 0.0%, Steering: -4.2\u00b0", "details": {"timestamp": "2026-11-14T23:45:29Z", "vin": "1G1YY22U965104928", "gps": {"latitude": 37.779250000000005, "longitude": -122.41592, "heading": 42.1, "altitude_m": 16.4}, "dynamics": {"speed_kph": 110.56, "speed_mph": 68.7, "brake_pedal_pct": 0.0, "throttle_pct": 34.0, "steering_angle_deg": -4.2, "seatbelt_driver_buckled": true, "gear_position": "D"}, "dtc_faults": [], "event_tag": "LANE_DEPARTURE_WARNING"}, "event_tag": "LANE_DEPARTURE_WARNING"}, {"timestamp_utc": "2026-11-14T23:45:29+00:00", "epoch": 1794699929.0, "source": "IVI_SMS_SYNC", "category": "COMMUNICATION_TEXT", "summary": "[OUTGOING] Sarah Miller (+1-415-555-0199): 'Opening it now on my screen'", "details": {"sender": "Sarah Miller", "phone": "+1-415-555-0199", "direction": "OUTGOING", "body": "Opening it now on my screen", "nlp_analysis": {"distraction_level": "CRITICAL_DISTRACTION", "distraction_score": 3, "classified_tags": ["HIGH_COGNITIVE_VISUAL_DISTRACTION"], "analyzed_text": "Opening it now on my screen"}, "extracted_entities": {}}, "event_tag": "SMS_OUTGOING"}, {"timestamp_utc": "2026-11-14T23:45:30+00:00", "epoch": 1794699930.0, "source": "CLOUD_TELEMATICS_API", "category": "VEHICLE_DYNAMICS", "summary": "Speed: 67.5 mph, Brake: 0.0%, Steering: -4.2\u00b0", "details": {"timestamp": "2026-11-14T23:45:30Z", "vin": "1G1YY22U965104928", "gps": {"latitude": 37.7794, "longitude": -122.41579999999999, "heading": 42.1, "altitude_m": 16.4}, "dynamics": {"speed_kph": 108.63, "speed_mph": 67.5, "brake_pedal_pct": 0.0, "throttle_pct": 34.0, "steering_angle_deg": -4.2, "seatbelt_driver_buckled": true, "gear_position": "D"}, "dtc_faults": [], "event_tag": "LANE_DEPARTURE_WARNING"}, "event_tag": "LANE_DEPARTURE_WARNING"}, {"timestamp_utc": "2026-11-14T23:45:31+00:00", "epoch": 1794699931.0, "source": "CLOUD_TELEMATICS_API", "category": "VEHICLE_DYNAMICS", "summary": "Speed: 68.7 mph, Brake: 0.0%, Steering: -4.2\u00b0", "details": {"timestamp": "2026-11-14T23:45:31Z", "vin": "1G1YY22U965104928", "gps": {"latitude": 37.77955, "longitude": -122.41568, "heading": 42.1, "altitude_m": 16.4}, "dynamics": {"speed_kph": 110.56, "speed_mph": 68.7, "brake_pedal_pct": 0.0, "throttle_pct": 34.0, "steering_angle_deg": -4.2, "seatbelt_driver_buckled": true, "gear_position": "D"}, "dtc_faults": [], "event_tag": "LANE_DEPARTURE_WARNING"}, "event_tag": "LANE_DEPARTURE_WARNING"}, {"timestamp_utc": "2026-11-14T23:45:32+00:00", "epoch": 1794699932.0, "source": "CLOUD_TELEMATICS_API", "category": "VEHICLE_DYNAMICS", "summary": "Speed: 58.0 mph, Brake: 85.0%, Steering: 18.5\u00b0", "details": {"timestamp": "2026-11-14T23:45:32Z", "vin": "1G1YY22U965104928", "gps": {"latitude": 37.779700000000005, "longitude": -122.41556, "heading": 42.1, "altitude_m": 16.4}, "dynamics": {"speed_kph": 93.34, "speed_mph": 58.0, "brake_pedal_pct": 85.0, "throttle_pct": 0.0, "steering_angle_deg": 18.5, "seatbelt_driver_buckled": true, "gear_position": "D"}, "dtc_faults": [], "event_tag": "EMERGENCY_BRAKE_ACTUATION"}, "event_tag": "EMERGENCY_BRAKE_ACTUATION"}, {"timestamp_utc": "2026-11-14T23:45:33+00:00", "epoch": 1794699933.0, "source": "CLOUD_TELEMATICS_API", "category": "VEHICLE_DYNAMICS", "summary": "Speed: 46.0 mph, Brake: 85.0%, Steering: 18.5\u00b0", "details": {"timestamp": "2026-11-14T23:45:33Z", "vin": "1G1YY22U965104928", "gps": {"latitude": 37.77985, "longitude": -122.41543999999999, "heading": 42.1, "altitude_m": 16.4}, "dynamics": {"speed_kph": 74.03, "speed_mph": 46.0, "brake_pedal_pct": 85.0, "throttle_pct": 0.0, "steering_angle_deg": 18.5, "seatbelt_driver_buckled": true, "gear_position": "D"}, "dtc_faults": [], "event_tag": "EMERGENCY_BRAKE_ACTUATION"}, "event_tag": "EMERGENCY_BRAKE_ACTUATION"}, {"timestamp_utc": "2026-11-14T23:45:34+00:00", "epoch": 1794699934.0, "source": "CLOUD_TELEMATICS_API", "category": "VEHICLE_DYNAMICS", "summary": "Speed: 34.0 mph, Brake: 85.0%, Steering: 18.5\u00b0", "details": {"timestamp": "2026-11-14T23:45:34Z", "vin": "1G1YY22U965104928", "gps": {"latitude": 37.78, "longitude": -122.41532, "heading": 42.1, "altitude_m": 16.4}, "dynamics": {"speed_kph": 54.72, "speed_mph": 34.0, "brake_pedal_pct": 85.0, "throttle_pct": 0.0, "steering_angle_deg": 18.5, "seatbelt_driver_buckled": true, "gear_position": "D"}, "dtc_faults": [], "event_tag": "EMERGENCY_BRAKE_ACTUATION"}, "event_tag": "EMERGENCY_BRAKE_ACTUATION"}, {"timestamp_utc": "2026-11-14T23:45:35+00:00", "epoch": 1794699935.0, "source": "CLOUD_TELEMATICS_API", "category": "VEHICLE_DYNAMICS", "summary": "Speed: 18.0 mph, Brake: 100.0%, Steering: 2.0\u00b0", "details": {"timestamp": "2026-11-14T23:45:35Z", "vin": "1G1YY22U965104928", "gps": {"latitude": 37.78015, "longitude": -122.4152, "heading": 42.1, "altitude_m": 16.4}, "dynamics": {"speed_kph": 28.97, "speed_mph": 18.0, "brake_pedal_pct": 100.0, "throttle_pct": 0.0, "steering_angle_deg": 2.0, "seatbelt_driver_buckled": true, "gear_position": "D"}, "dtc_faults": ["B0001-13"], "event_tag": "AIRBAG_DEPLOYMENT_PRIMARY_IMPACT"}, "event_tag": "AIRBAG_DEPLOYMENT_PRIMARY_IMPACT"}, {"timestamp_utc": "2026-11-14T23:45:36+00:00", "epoch": 1794699936.0, "source": "CLOUD_TELEMATICS_API", "category": "VEHICLE_DYNAMICS", "summary": "Speed: 0.0 mph, Brake: 0.0%, Steering: 0.0\u00b0", "details": {"timestamp": "2026-11-14T23:45:36Z", "vin": "1G1YY22U965104928", "gps": {"latitude": 37.780300000000004, "longitude": -122.41507999999999, "heading": 42.1, "altitude_m": 16.4}, "dynamics": {"speed_kph": 0.0, "speed_mph": 0.0, "brake_pedal_pct": 0.0, "throttle_pct": 0.0, "steering_angle_deg": 0.0, "seatbelt_driver_buckled": true, "gear_position": "P"}, "dtc_faults": ["B0001-13"], "event_tag": "VEHICLE_DISABLED_POST_IMPACT"}, "event_tag": "VEHICLE_DISABLED_POST_IMPACT"}, {"timestamp_utc": "2026-11-14T23:45:36+00:00", "epoch": 1794699936.0, "source": "IVI_VOICE_ASSISTANT", "category": "VOICE_INTERACTION", "summary": "Voice Query: 'Emergency eCall automated dispatch initiated' [Intent: ECALL_AUTO_DISPATCH]", "details": {"transcript": "Emergency eCall automated dispatch initiated", "intent": "ECALL_AUTO_DISPATCH", "nlp_analysis": {"distraction_level": "NONE", "distraction_score": 0, "classified_tags": ["EMERGENCY_RESPONSE"], "analyzed_text": "Emergency eCall automated dispatch initiated"}, "extracted_entities": {"CRITICAL_EVENT": ["eCall"]}}, "event_tag": "VOICE_ECALL_AUTO_DISPATCH"}, {"timestamp_utc": "2026-11-14T23:45:37+00:00", "epoch": 1794699937.0, "source": "CLOUD_TELEMATICS_API", "category": "VEHICLE_DYNAMICS", "summary": "Speed: 0.0 mph, Brake: 0.0%, Steering: 0.0\u00b0", "details": {"timestamp": "2026-11-14T23:45:37Z", "vin": "1G1YY22U965104928", "gps": {"latitude": 37.78045, "longitude": -122.41496, "heading": 42.1, "altitude_m": 16.4}, "dynamics": {"speed_kph": 0.0, "speed_mph": 0.0, "brake_pedal_pct": 0.0, "throttle_pct": 0.0, "steering_angle_deg": 0.0, "seatbelt_driver_buckled": true, "gear_position": "P"}, "dtc_faults": ["B0001-13"], "event_tag": "VEHICLE_DISABLED_POST_IMPACT"}, "event_tag": "VEHICLE_DISABLED_POST_IMPACT"}, {"timestamp_utc": "2026-11-14T23:45:38+00:00", "epoch": 1794699938.0, "source": "CLOUD_TELEMATICS_API", "category": "VEHICLE_DYNAMICS", "summary": "Speed: 0.0 mph, Brake: 0.0%, Steering: 0.0\u00b0", "details": {"timestamp": "2026-11-14T23:45:38Z", "vin": "1G1YY22U965104928", "gps": {"latitude": 37.7806, "longitude": -122.41484, "heading": 42.1, "altitude_m": 16.4}, "dynamics": {"speed_kph": 0.0, "speed_mph": 0.0, "brake_pedal_pct": 0.0, "throttle_pct": 0.0, "steering_angle_deg": 0.0, "seatbelt_driver_buckled": true, "gear_position": "P"}, "dtc_faults": ["B0001-13"], "event_tag": "VEHICLE_DISABLED_POST_IMPACT"}, "event_tag": "VEHICLE_DISABLED_POST_IMPACT"}, {"timestamp_utc": "2026-11-14T23:45:39+00:00", "epoch": 1794699939.0, "source": "CLOUD_TELEMATICS_API", "category": "VEHICLE_DYNAMICS", "summary": "Speed: 0.0 mph, Brake: 0.0%, Steering: 0.0\u00b0", "details": {"timestamp": "2026-11-14T23:45:39Z", "vin": "1G1YY22U965104928", "gps": {"latitude": 37.780750000000005, "longitude": -122.41472, "heading": 42.1, "altitude_m": 16.4}, "dynamics": {"speed_kph": 0.0, "speed_mph": 0.0, "brake_pedal_pct": 0.0, "throttle_pct": 0.0, "steering_angle_deg": 0.0, "seatbelt_driver_buckled": true, "gear_position": "P"}, "dtc_faults": ["B0001-13"], "event_tag": "VEHICLE_DISABLED_POST_IMPACT"}, "event_tag": "VEHICLE_DISABLED_POST_IMPACT"}, {"timestamp_utc": "2026-11-14T23:45:40+00:00", "epoch": 1794699940.0, "source": "CLOUD_TELEMATICS_API", "category": "VEHICLE_DYNAMICS", "summary": "Speed: 0.0 mph, Brake: 0.0%, Steering: 0.0\u00b0", "details": {"timestamp": "2026-11-14T23:45:40Z", "vin": "1G1YY22U965104928", "gps": {"latitude": 37.7809, "longitude": -122.4146, "heading": 42.1, "altitude_m": 16.4}, "dynamics": {"speed_kph": 0.0, "speed_mph": 0.0, "brake_pedal_pct": 0.0, "throttle_pct": 0.0, "steering_angle_deg": 0.0, "seatbelt_driver_buckled": true, "gear_position": "P"}, "dtc_faults": ["B0001-13"], "event_tag": "VEHICLE_DISABLED_POST_IMPACT"}, "event_tag": "VEHICLE_DISABLED_POST_IMPACT"}, {"timestamp_utc": "2026-11-14T23:45:40+00:00", "epoch": 1794699940.0, "source": "IVI_CALL_LOGS", "category": "VOICE_CALL", "summary": "Call [OUTGOING]: Emergency Services (911), Duration: 85s", "details": {"phone": "911", "contact": "Emergency Services", "type": "OUTGOING", "duration": 85}, "event_tag": "CALL_OUTGOING"}];
+        const distractionEvents = [{"timestamp": "2026-11-14T23:45:24+00:00", "source": "IVI_SMS_SYNC", "text": "Urgent: Check your email right now, the deal contract arrived!", "level": "CRITICAL_DISTRACTION", "seconds_before_impact": 11.0}, {"timestamp": "2026-11-14T23:45:27+00:00", "source": "IVI_VOICE_ASSISTANT", "text": "Read the last incoming message from Sarah", "level": "CRITICAL_DISTRACTION", "seconds_before_impact": 8.0}, {"timestamp": "2026-11-14T23:45:29+00:00", "source": "IVI_SMS_SYNC", "text": "Opening it now on my screen", "level": "CRITICAL_DISTRACTION", "seconds_before_impact": 6.0}];
+        const crashCenter = [37.78015, -122.4152];
+
+        const waypoints = trackData.map(d => [d.gps.latitude, d.gps.longitude]);
+
+        // 1. Initialize Map
+        const map = L.map('map', {
+            zoomControl: false,
+            center: crashCenter,
+            zoom: 15
+        });
+
+        L.control.zoom({ position: 'topright' }).addTo(map);
+        L.control.scale({ imperial: true, metric: true, position: 'bottomright' }).addTo(map);
+
+        // 2. High-Performance Tile Providers (Zero API Key Required & Zero Watermarks)
+        const baseMaps = {
+            "ArcGIS Dark Canvas (Default)": L.layerGroup([
+                L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/Canvas/World_Dark_Gray_Base/MapServer/tile/{z}/{y}/{x}', {
+                    maxZoom: 16,
+                    attribution: 'Tiles &copy; Esri &mdash; Esri, DeLorme, NAVTEQ'
+                }),
+                L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/Canvas/World_Dark_Gray_Reference/MapServer/tile/{z}/{y}/{x}', {
+                    maxZoom: 16,
+                    attribution: 'Reference &copy; Esri'
+                })
+            ]),
+            "Esri Satellite Imagery": L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {
+                maxZoom: 19,
+                attribution: 'Tiles &copy; Esri &mdash; High-Res Earth Imagery'
+            }),
+            "OpenStreetMap Cyber Dark": L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
+                maxZoom: 19,
+                className: 'leaflet-dark-tiles',
+                attribution: '&copy; OpenStreetMap contributors'
+            }),
+            "OpenStreetMap Standard": L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
+                maxZoom: 19,
+                attribution: '&copy; OpenStreetMap contributors'
+            }),
+            "Google Maps Hybrid": L.tileLayer('https://mt1.google.com/vt/lyrs=y&x={z}&y={y}&z={z}', {
+                maxZoom: 20,
+                attribution: '&copy; Google Maps'
+            })
+        };
+
+        // Add Default Zero-Watermark Layer
+        baseMaps["ArcGIS Dark Canvas (Default)"].addTo(map);
+        const layersControl = L.control.layers(baseMaps, null, { position: 'topright' }).addTo(map);
+
+        map.on('baselayerchange', function(e) {
+            document.getElementById('activeLayerLabel').innerText = e.name;
+        });
+
+        // 3. Render High-Contrast Polyline Trajectory Segments
+        // Normal Cruise (T=0 to T=24) - Emerald Green
+        L.polyline(waypoints.slice(0, 26), {
+            color: '#10b981',
+            weight: 5.5,
+            opacity: 0.95,
+            lineJoin: 'round'
+        }).addTo(map).bindPopup("<b>Phase 1: Normal Cruise (T=0 to T=24s)</b><br>Speed: 65 mph &bull; Driver Attentive");
+
+        // Distraction & Lane Departure (T=25 to T=31) - Amber Dashed
+        L.polyline(waypoints.slice(24, 33), {
+            color: '#f59e0b',
+            weight: 6,
+            dashArray: '8, 8',
+            opacity: 1.0,
+            lineJoin: 'round'
+        }).addTo(map).bindPopup("<b>Phase 2: Distraction &amp; Lane Departure (T=25 to T=31s)</b><br>Inbound SMS + Voice query + Typing on screen");
+
+        // AEB Emergency Braking (T=32 to T=35) - Sky Blue
+        L.polyline(waypoints.slice(31, 36), {
+            color: '#38bdf8',
+            weight: 6.5,
+            opacity: 1.0,
+            lineJoin: 'round'
+        }).addTo(map).bindPopup("<b>Phase 3: Emergency AEB (T=32 to T=35s)</b><br>Brake boost 85% &bull; Deceleration from 58 to 18 mph");
+
+        // Post-Crash Stopped Track (T=35 to T=59) - Red
+        L.polyline(waypoints.slice(35), {
+            color: '#ef4444',
+            weight: 5,
+            opacity: 0.8
+        }).addTo(map).bindPopup("<b>Phase 4: Post-Impact Disabled Position</b><br>Airbag deployed &bull; Vehicle stopped");
+
+        // 4. Milestone Markers with Forensics Callouts
+        // Trip Start
+        L.circleMarker(waypoints[0], { radius: 7, color: '#10b981', fillColor: '#10b981', fillOpacity: 1, weight: 2 })
+            .addTo(map).bindPopup("<b>Trip Start Point (T + 00s)</b><br>23:45:00 UTC<br>Speed: 65.0 mph &bull; Cruise Active");
+
+        // T+24s: Incoming SMS
+        L.circleMarker(waypoints[24], { radius: 7, color: '#f59e0b', fillColor: '#f59e0b', fillOpacity: 1, weight: 2 })
+            .addTo(map).bindPopup("<b>T + 24s: Inbound SMS (T - 11.0s)</b><br>From: Sarah Miller<br><em>'Urgent: Check your email right now...'</em>");
+
+        // T+27s: Voice Assistant Trigger
+        L.circleMarker(waypoints[27], { radius: 7, color: '#a855f7', fillColor: '#a855f7', fillOpacity: 1, weight: 2 })
+            .addTo(map).bindPopup("<b>T + 27s: IVI Voice Query (T - 8.0s)</b><br>Query: <em>'Read the last incoming message from Sarah'</em>");
+
+        // T+29s: Outbound SMS Compose
+        L.circleMarker(waypoints[29], { radius: 7, color: '#ec4899', fillColor: '#ec4899', fillOpacity: 1, weight: 2 })
+            .addTo(map).bindPopup("<b>T + 29s: Driver Texting (T - 6.0s)</b><br>Sent: <em>'Opening it now on my screen'</em><br>High Visual/Manual Distraction");
+
+        // T+32s: AEB Trigger
+        L.circleMarker(waypoints[32], { radius: 7, color: '#38bdf8', fillColor: '#38bdf8', fillOpacity: 1, weight: 2 })
+            .addTo(map).bindPopup("<b>T + 32s: Hydraulic AEB Boost (T - 3.0s)</b><br>Brake boost: 85% &bull; Deceleration initiated");
+
+        // Collision Epicenter Pulsing Marker
+        const pulsingIcon = L.divIcon({
+            className: 'pulsing-marker',
+            iconSize: [26, 26],
+            iconAnchor: [13, 13]
+        });
+        L.marker(crashCenter, { icon: pulsingIcon }).addTo(map).bindPopup(`
+            <div class="p-1 font-mono text-xs">
+                <div class="text-rose-400 font-bold flex items-center gap-1 mb-1">
+                    <span class="w-2 h-2 rounded-full bg-rose-500 animate-ping"></span>
+                    PRIMARY COLLISION SITE (T + 35s)
+                </div>
+                <div><strong>Timestamp:</strong> 23:45:35 UTC</div>
+                <div><strong>Coordinates:</strong> 37.78015, -122.41520</div>
+                <div><strong>Delta-V:</strong> X = -42 km/h, Y = +8 km/h</div>
+                <div class="text-amber-300"><strong>DTC Fault:</strong> B0001-13 (Airbag Deployed)</div>
+            </div>
+        `);
+
+        // 90m Forensic Exclusion Geofence
+        L.circle(crashCenter, {
+            radius: 90,
+            color: '#ef4444',
+            fillColor: '#ef4444',
+            fillOpacity: 0.14,
+            dashArray: '6, 6',
+            weight: 2
+        }).addTo(map).bindPopup("<b>Forensic Exclusion Perimeter</b><br>Radius: 90 meters &bull; Scene Secured");
+
+        // 5. Dynamic Vehicle Marker
+        const carIcon = L.divIcon({
+            html: '<div class="w-8 h-8 rounded-full bg-indigo-600 border-2 border-white flex items-center justify-center text-white shadow-lg shadow-indigo-600/50"><svg class="w-4 h-4" fill="currentColor" viewBox="0 0 20 20"><path d="M8 16.5a1.5 1.5 0 11-3 0 1.5 1.5 0 013 0zM15 16.5a1.5 1.5 0 11-3 0 1.5 1.5 0 013 0z"></path><path d="M3 4a1 1 0 00-1 1v10a1 1 0 001 1h1.05a2.5 2.5 0 014.9 0H10a1 1 0 001-1V5a1 1 0 00-1-1H3zM14 7a1 1 0 00-1 1v6.05A2.5 2.5 0 0115.95 16H17a1 1 0 001-1v-5a1 1 0 00-.293-.707l-2-2A1 1 0 0015 7h-1z"></path></svg></div>',
+            className: '',
+            iconSize: [32, 32],
+            iconAnchor: [16, 16]
+        });
+
+        let vehicleMarker = L.marker(waypoints[0], { icon: carIcon, zIndexOffset: 1000 }).addTo(map);
+
+        // 6. Navigation Controls
+        function fitMapBounds() {
+            map.fitBounds(L.polyline(waypoints).getBounds(), { padding: [60, 60] });
+        }
+
+        function zoomToCrash() {
+            map.flyTo(crashCenter, 18, { duration: 1.2 });
+        }
+
+        // 7. Interactive Trajectory Playback Engine
+        let currentStep = 0;
+        let playInterval = null;
+        let speedMultiplier = 1.0;
+
+        function setSimulationStep(idx) {
+            const pt = trackData[idx];
+            if (!pt) return;
+
+            // Move vehicle marker
+            vehicleMarker.setLatLng([pt.gps.latitude, pt.gps.longitude]);
+
+            // Update HUD
+            document.getElementById('hudSimTime').innerText = `T + ${idx < 10 ? '0' + idx : idx}.0s`;
+            document.getElementById('hudSpeed').innerHTML = `${pt.dynamics.speed_mph.toFixed(1)} <span class="text-xs text-slate-400">mph</span>`;
+            document.getElementById('hudSpeedKph').innerText = `${pt.dynamics.speed_kph.toFixed(1)} km/h`;
+            document.getElementById('hudBrake').innerHTML = `${pt.dynamics.brake_pedal_pct.toFixed(1)} <span class="text-xs text-slate-400">%</span>`;
+            document.getElementById('hudBrakeStatus').innerText = pt.dynamics.brake_pedal_pct > 50 ? "AEB ACTIVE" : (pt.dynamics.brake_pedal_pct > 0 ? "Braking" : "Cruise / Inactive");
+            document.getElementById('hudThrottle').innerText = `${pt.dynamics.throttle_pct.toFixed(1)}%`;
+            document.getElementById('hudGear').innerText = pt.dynamics.gear_position;
+            document.getElementById('hudSteering').innerHTML = `${pt.dynamics.steering_angle_deg.toFixed(1)}&deg;`;
+            document.getElementById('hudHeading').innerText = `${pt.gps.heading.toFixed(1)}&deg;`;
+            document.getElementById('hudCoords').innerText = `${pt.gps.latitude.toFixed(5)}, ${pt.gps.longitude.toFixed(5)}`;
+            document.getElementById('hudEventTag').innerText = pt.event_tag;
+
+            // Distraction Callout sync
+            const distractionBox = document.getElementById('hudDistractionBox');
+            const distractionText = document.getElementById('hudDistractionText');
+            if (idx === 24) {
+                distractionBox.classList.remove('hidden');
+                distractionText.innerText = "T+24s: Incoming SMS - 'Urgent: Check your email right now, the deal contract arrived!'";
+            } else if (idx === 27) {
+                distractionBox.classList.remove('hidden');
+                distractionText.innerText = "T+27s: Voice Query - 'Read the last incoming message from Sarah'";
+            } else if (idx === 29) {
+                distractionBox.classList.remove('hidden');
+                distractionText.innerText = "T+29s: Driver Texting - 'Opening it now on my screen' (Fatal cognitive diversion)";
+            } else if (idx >= 35) {
+                distractionBox.classList.remove('hidden');
+                distractionBox.className = "bg-rose-950/60 border border-rose-800 rounded-lg p-2 text-xs";
+                distractionText.innerHTML = "<strong class='text-rose-400'>CRASH:</strong> Airbag Deployed &bull; Delta-V -42km/h &bull; DTC B0001-13 Set";
+            } else {
+                distractionBox.classList.add('hidden');
+            }
+
+            // Scrubber
+            document.getElementById('trajectorySlider').value = idx;
+            document.getElementById('timelineTimestamp').innerText = pt.timestamp.split("T")[1].replace("Z", " UTC");
+        }
+
+        function toggleTrajectoryPlay() {
+            if (playInterval) {
+                pauseTrajectory();
+            } else {
+                startTrajectory();
+            }
+        }
+
+        function startTrajectory() {
+            document.getElementById('playBtnText').innerText = "Pause";
+            document.getElementById('playBtn').classList.replace("bg-indigo-600", "bg-amber-600");
+            document.getElementById('playBtn').classList.replace("hover:bg-indigo-500", "hover:bg-amber-500");
+
+            const intervalMs = Math.max(60, Math.floor(350 / speedMultiplier));
+            playInterval = setInterval(() => {
+                if (currentStep >= trackData.length) {
+                    pauseTrajectory();
+                    return;
+                }
+                setSimulationStep(currentStep);
+                currentStep++;
+            }, intervalMs);
+        }
+
+        function pauseTrajectory() {
+            clearInterval(playInterval);
+            playInterval = null;
+            document.getElementById('playBtnText').innerText = "Replay Track";
+            document.getElementById('playBtn').classList.replace("bg-amber-600", "bg-indigo-600");
+            document.getElementById('playBtn').classList.replace("hover:bg-amber-500", "hover:bg-indigo-500");
+        }
+
+        function resetTrajectoryPlay() {
+            pauseTrajectory();
+            currentStep = 0;
+            setSimulationStep(0);
+            map.panTo(waypoints[0]);
+        }
+
+        function stepTrajectory(delta) {
+            pauseTrajectory();
+            let newStep = currentStep + delta;
+            if (newStep < 0) newStep = 0;
+            if (newStep >= trackData.length) newStep = trackData.length - 1;
+            currentStep = newStep;
+            setSimulationStep(currentStep);
+        }
+
+        function scrubTrajectory(val) {
+            pauseTrajectory();
+            currentStep = parseInt(val, 10);
+            setSimulationStep(currentStep);
+        }
+
+        function changePlaySpeed() {
+            speedMultiplier = parseFloat(document.getElementById('playSpeedSelect').value);
+            if (playInterval) {
+                pauseTrajectory();
+                startTrajectory();
+            }
+        }
+
+        // Initialize at Step 0
+        setSimulationStep(0);
+        fitMapBounds();
+    </script>
+</body>
+</html>
